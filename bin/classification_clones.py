@@ -4,8 +4,6 @@
 
 ########################################################################
 
-# Parsing CLI args 
-
 # Libraries
 import sys 
 import argparse
@@ -14,10 +12,10 @@ import argparse
 my_parser = argparse.ArgumentParser(
     prog='clones_classification',
     description=
-        '''
-        Systematically testing the ability of (filtered) MT-SNVs to distinguish ground truth clonal labels
-        from lentiviral barcoding.
-        '''
+        """
+        Systematically testing the ability of (filtered) MT-SNVs to distinguish
+        ground truth clonal labels from lentiviral barcoding.
+        """
 )
 
 # Add arguments
@@ -25,26 +23,18 @@ my_parser = argparse.ArgumentParser(
 # Path_main
 my_parser.add_argument(
     '-p', 
-    '--path_main', 
+    '--path_data', 
     type=str,
     default='..',
-    help='The path to the main project directory. Default: .. .'
+    help='Path to samples data. Default: .. .'
 )
 
 # Filter
 my_parser.add_argument(
     '--sample', 
     type=str,
-    default='MDA',
-    help='Sample to use. Default: MDA.'
-)
-
-# Input_mode
-my_parser.add_argument(
-    '--input_mode', 
-    type=str,
-    default='more_stringent',
-    help='Preprocessing version following the maegatk software. Default: more_stringent.'
+    default='MDA_clones',
+    help='Sample to use. Default: MDA_clones.'
 )
 
 # Filter
@@ -127,6 +117,14 @@ my_parser.add_argument(
     help='Classification performance scoring type. Default: f1-score.'
 )
 
+# Score
+my_parser.add_argument(
+    '--blacklist', 
+    type=str,
+    default='.',
+    help='Path to variant blacklist file. Default: ..'
+)
+
 # skip
 my_parser.add_argument(
     '--skip', 
@@ -137,9 +135,8 @@ my_parser.add_argument(
 # Parse arguments
 args = my_parser.parse_args()
 
-path_main = args.path_main
+path_data = args.path_data
 sample = args.sample
-input_mode = args.input_mode
 dimred = args.dimred
 filtering = args.filtering if dimred == 'no_dimred' else 'pegasus'
 model = args.model
@@ -150,6 +147,7 @@ min_cell_number = args.min_cell_number
 min_cov_treshold = args.min_cov_treshold
 n_comps = args.n_comps
 GS_mode = args.GS_mode
+path_blacklist = args.blacklist
 
 ########################################################################
 
@@ -157,22 +155,17 @@ GS_mode = args.GS_mode
 if not args.skip:
 
     # Code
-    from MI_TO.utils import *
-    from MI_TO.preprocessing import *
-    from MI_TO.dimred import *
-    from MI_TO.supervised import *
+    from mito_utils.utils.helpers import *
+    from mito_utils.preprocessing.preprocessing import *
+    from mito_utils.dimred.dimred import *
+    from mito_utils.supervised.classification import *
 
-    #-----------------------------------------------------------------#
-
-    # path_main = '/Users/IEO5505/Desktop/MI_TO/'
-    path_data = path_main + 'data/'
-    path_results = path_main + 'results_and_plots/supervised/clones_classification/'
-    path_runs = path_main + 'runs/'
-
-    #-----------------------------------------------------------------#
-
-    # Set logger 
-    logger = set_logger(path_runs, f'logs_{sample}_{input_mode}_{filtering}_{dimred}_{min_cell_number}_{min_cov_treshold}_{model}_{score}.txt')
+    # Set logger
+    path = os.getcwd() 
+    logger = set_logger(
+        path, 
+        f'log_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.txt'
+    )
 
 ########################################################################
 
@@ -188,9 +181,8 @@ def main():
 
     logger.info(
         f""" 
-        Execute classification: \n
+        Execute clones classification: \n
         --sample {sample} 
-        --input_mode {input_mode} 
         --filtering {filtering} 
         --dimred {dimred} 
         --model {model}
@@ -201,10 +193,10 @@ def main():
         """
     )
     
-    afm = read_one_sample(path_main, input_mode=input_mode, sample=sample)
+    afm = read_one_sample(path_data, sample=sample)
     ncells0 = afm.shape[0]
     n_all_clones = len(afm.obs['GBC'].unique())
-    blacklist = pd.read_csv(path_data + 'blacklist.csv', index_col=0)
+    # blacklist = pd.read_csv(path_blacklist, index_col=0)
 
     ##
 
@@ -213,13 +205,13 @@ def main():
 
         _, a = filter_cells_and_vars(
             afm,
-            blacklist=blacklist,
+            # blacklist=blacklist,
             sample=sample,
             filtering=filtering, 
             min_cell_number=min_cell_number, 
             min_cov_treshold=min_cov_treshold, 
             nproc=ncores, 
-            path_=path_results
+            path_=path
         )
 
         # Extract X, y
@@ -227,7 +219,6 @@ def main():
         ncells = a.shape[0]
         n_clones_analyzed = len(a.obs['GBC'].unique())
         X = a.X
-        feature_names = a.var_names
         y = pd.Categorical(a.obs['GBC'])
         Y = one_hot_from_labels(y)
 
@@ -271,7 +262,7 @@ def main():
         if np.sum(y_) > min_cell_number:
 
             d = classification(X, y_, key=model, GS=True, GS_mode=GS_mode,
-                score=score, n_combos=ncombos, cores_model=ncores, cores_GS=1)
+                            score=score, n_combos=ncombos, cores_model=ncores, cores_GS=1)
             d |= {
                 'sample' : sample,
                 'filtering' : filtering, 
@@ -295,7 +286,12 @@ def main():
     logger.info(df['f1'].describe())
 
     # Save results
-    df.to_csv(path_results + f'{sample}_{input_mode}_{filtering}_{dimred}_{min_cell_number}_{min_cov_treshold}_{model}_{score}.csv')
+    df.to_csv(
+        os.path.join(
+            path, 
+            f'out_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.csv'
+        )
+    )
 
     #-----------------------------------------------------------------#
 

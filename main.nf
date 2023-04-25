@@ -1,59 +1,40 @@
-#!/usr/bin/env nextflow
-
+// MI_TO pipeline
 nextflow.enable.dsl = 2
+include { classification_clones } from "./subworkflows/clones/main"
+// include { classification_samples } from "./subworkflows/samples/main"
 
-// Paths
-params.p = '/Users/IEO5505/Desktop/MI_TO/'
-params.path_code = '/Users/IEO5505/Desktop/MI_TO/three_samples_analyses/scripts/'
+// Samples channel
+ch_samples = Channel
+    .fromPath("${params.path_data}/*", type:'dir') 
+    .map{ it.getName() }
 
 //
 
-// Create jobs options
-process createOptions {
+//----------------------------------------------------------------------------//
+// mito_supervised entry points
+//----------------------------------------------------------------------------//
 
-    output:
-    path 'jobs.csv'
+//
 
-    script:
-    """
-    python $params.path_code/create_options.py > 'jobs.csv'
-    """
+workflow clones {
+
+    classification_clones(ch_samples)
+    classification_clones.out.job_output.view()
 
 }
 
-// Run!
-process runJobs {
+//
 
-    input:
-    val x
+// workflow samples {
+// 
+//     classification_samples(ch_samples)
+//     classification_samples.out.summary.view()
+// 
+// }
 
-    output:
-    path 'out.csv'
+// Mock
+workflow  {
     
-    script:
-    """
-    python $params.path_code/classification_clones.py \
-        --min_cov_treshold 50 \
-        --ncombos 100 \
-        --ncores ${task.cpus} \
-        --p $params.p \
-        --sample ${x[1]} \
-        --input_mode ${x[2]} \
-        --filtering ${x[3]} \
-        --dimred ${x[4]} \
-        --model ${x[5]} \
-        --min_cell_number ${x[6]} > out.csv
-    """
+    Channel.of(1,2,3,4) | view
 
 }
-
-// Workflow
-workflow { 
-
-    jobs = createOptions().splitCsv(skip:1)
-    runJobs(jobs) 
-    view
-
-}
-
-

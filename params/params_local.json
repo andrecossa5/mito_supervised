@@ -1,0 +1,14 @@
+{
+    "path_data" : "/Users/IEO5505/Desktop/example_mito_exploratory/data/",
+    "outdir" : "/Users/IEO5505/Desktop/example_mito_exploratory/results/supervised_clones/output/",
+    "logdir" : "/Users/IEO5505/Desktop/example_mito_exploratory/results/supervised_clones/logs/",
+    "min_cov_treshold" : 50,
+    "n_combos" : 100,
+    "samples" : ["AML_clones"],
+    "filtering" : ["miller2022"],
+    "GS_mode" : ["random"],
+    "dimred" : ["no_dimred"],
+    "model" : ["kNN"],
+    "min_cell_number" : [5]
+
+}
