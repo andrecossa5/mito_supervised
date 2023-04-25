@@ -9,6 +9,6 @@
     "GS_mode" : ["random"],
     "dimred" : ["no_dimred"],
     "model" : ["kNN"],
-    "min_cell_number" : [5]
+    "min_cell_number" : [5, 10, 15]
 
 }

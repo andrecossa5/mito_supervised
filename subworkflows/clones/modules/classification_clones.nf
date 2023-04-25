@@ -42,5 +42,4 @@ process JOB {
     touch "log_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.txt"
     """
 
-
 }
