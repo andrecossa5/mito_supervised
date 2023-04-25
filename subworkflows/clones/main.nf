@@ -16,15 +16,20 @@ workflow classification_clones {
         ch_samples 
 
     main:
+
+        // Create options
         options = ch_samples
         .combine(params.filtering)
         .combine(params.GS_mode)
         .combine(params.dimred)
         .combine(params.model)
         .combine(params.min_cell_number)
+        .filter{ !(it[1] != "pegasus" && it[3] != "no_dimred") }
+
+        // Execute jobs
         JOB(options)
 
     emit:
-        job_output = JOB.out.output
+        job_output = options
 
 }
