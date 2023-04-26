@@ -29,6 +29,7 @@ process JOB {
         --ncores ${task.cpus} \
         --p ${params.path_data} \
         --sample ${sample} \
+        --score ${params.score} \
         --filtering ${filtering} \
         --GS_mode ${GS_mode} \
         --dimred ${dimred} \

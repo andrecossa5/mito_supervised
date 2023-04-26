@@ -9,15 +9,11 @@ import os
 import sys
 import gc
 from itertools import chain
-from Cellula.plotting._plotting import *
-from Cellula.plotting._plotting_base import *
-from Cellula.plotting._colors import *
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from MI_TO.preprocessing import *
-from MI_TO.diagnostic_plots import sturges
-from MI_TO.heatmaps_plots import *
-from MI_TO.utils import *
-from MI_TO.diagnostic_plots import *
+from mito_utils.preprocessing.preprocessing import *
+from mito_utils.plotting.diagnostic_plots import sturges
+from mito_utils.plotting.heatmaps_plots import *
+from mito_utils.utils.helpers import *
 matplotlib.use('macOSX')
 
 
@@ -25,65 +21,58 @@ matplotlib.use('macOSX')
 
 
 # Set paths
+# path_clones = '/Users/IEO5505/Desktop/MI_TO/scratch/clones_supervised_report/random_report.csv' 
 path_main = sys.argv[1]
-heatmap_sample = sys.argv[2]
-fast = sys.argv[3]
 
-# heatmap_sample = 'MDA'
-# fast = 'fast'
-# path_main = '/Users/IEO5505/Desktop/MI_TO/'
-
-path_clones = path_main + '/results_and_plots/clones_classification/'
-path_samples = path_main + '/results_and_plots/samples_classification/'
-path_results = path_main + '/results_and_plots/classification_performance/'
-
-# Read reports
-clones = pd.read_excel(path_clones + 'report_classification_clones.xlsx', index_col=0)
-samples = pd.read_excel(path_samples + 'report_classification_samples.xlsx', index_col=0)
-
-# Re-format analysis
-clones['analysis'] += '_' + clones['model']
-samples['analysis'] += '_' + samples['model']
+# Read report
+clones = pd.read_csv(path_clones, index_col=0)
 
 ############## 
 
 
 ##
 
+params = {   
+    'showcaps' : True,
+    'fliersize': 0,
+    'boxprops' : {'edgecolor': 'black', 'linewidth': 0.5}, 
+    'medianprops': {"color": "black", "linewidth": 1},
+    'whiskerprops':{"color": "black", "linewidth": 1}
+}
+
+##
+
 
 ############## f1 by clone and feat_type
-fig, ax = plt.subplots(figsize=(12, 5))
+fig, ax = plt.subplots(figsize=(11, 5))
 
-feat_type_colors = create_palette(clones, 'feature_type', 'Set1')
-params = {   
-            'showcaps' : True,
-            'fliersize': 0,
-            'boxprops' : {'edgecolor': 'black', 'linewidth': 0.3}, 
-            'medianprops': {"color": "black", "linewidth": 1},
-            'whiskerprops':{"color": "black", "linewidth": 1}
-        }
-box(clones, 'comparison', 'f1', c='#E9E7E7', ax=ax, kwargs=params)
-strip(clones, 'comparison', 'f1', by='feature_type', c=feat_type_colors, s=2, ax=ax)
-format_ax(clones, ax, title='f1-scores by clone and variant selection method', rotx=90, xsize=5)
-create_handles(feat_type_colors.keys(), marker='o', colors=None, size=10, width=0.5)
-handles = create_handles(feat_type_colors.keys(), colors=feat_type_colors.values())
-fig.legend(handles, feat_type_colors.keys(), loc='upper right', 
-    bbox_to_anchor=(0.9, 0.9), ncol=2, frameon=False, title='Feature selection'
+df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+clones_order = (
+    df_.groupby('comparison')['f1']
+    .mean()
+    .sort_values(ascending=False)
+    .index
 )
-
-v = 0.8
-np.sum([ np.sum(clones.query('comparison == @x')['f1'] > v) > 0 for x in clones['comparison'].unique() ])
-
-v = 0.5
-np.sum([ np.median(clones.query('comparison == @x')['f1']) > v for x in clones['comparison'].unique() ])
-
-ax.text(0.25, 0.8, f'-n clones with more than one classification above 0.5 f1: 6', transform=ax.transAxes)
-ax.text(0.25, 0.75, f'-n clones with more than one classification above 0.8 f1: 6', transform=ax.transAxes)
-ax.text(0.25, 0.7, f'-n clones with median f1 > 0.5: 1', transform=ax.transAxes)
+feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
+box(df_, 'comparison', 'f1', c='#E9E7E7', ax=ax, kwargs=params, order=clones_order)
+strip(df_, 'comparison', 'f1', by='feature_type', c=feat_type_colors, s=3.2, ax=ax, order=clones_order)
+format_ax(ax, title='f1-score by clone and feature type', ylabel='f1 score', rotx=90, xticks_size=5)
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors, 
+    ax=ax,
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=10,
+    ticks_size=8
+)
 
 # Save
 fig.tight_layout()
-fig.savefig(path_results + 'clones_f1.pdf')
+plt.show()
+
+# fig.savefig(path_results + 'clones_f1.pdf')
 ##############
 
 
@@ -91,23 +80,36 @@ fig.savefig(path_results + 'clones_f1.pdf')
 
 
 ############## f1 by sample and feat_type
-fig, ax = plt.subplots(figsize=(8, 6.8))
+fig, ax = plt.subplots(figsize=(6, 5))
 
-box(clones, 'sample', 'f1', ax=ax, s=0.5, c='#E9E7E7', params=params)
-strip(clones, 'sample', 'f1', by='feature_type', c=feat_type_colors, s=3, ax=ax)
-format_ax(clones, ax, title='Clones f1-scores by sample and variant selection method', ylabel='f1')
-create_handles(feat_type_colors.keys(), marker='o', colors=None, size=10, width=0.75)
-handles = create_handles(feat_type_colors.keys(), colors=feat_type_colors.values())
-fig.subplots_adjust(right=0.75)
-fig.legend(handles, feat_type_colors.keys(), loc='center', 
-    bbox_to_anchor=(0.85, 0.6), ncol=1, frameon=False, title='Feature selection'
+df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+samples_order = (
+    df_.groupby('sample')['f1']
+    .mean()
+    .sort_values(ascending=False)
+    .index
 )
-ax.text(1.05, 0.4, f'Mean MDA: {clones.loc[clones["sample"]=="AML"]["f1"].mean():.3f}', transform=ax.transAxes)
-ax.text(1.05, 0.36, f'Mean AML: {clones.loc[clones["sample"]=="MDA"]["f1"].mean():.3f}', transform=ax.transAxes)
-ax.text(1.05, 0.32, f'Mean PDX: {clones.loc[clones["sample"]=="PDX"]["f1"].mean():.3f}', transform=ax.transAxes)
+feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
+box(df_, 'sample', 'f1', c='#E9E7E7', ax=ax, kwargs=params, order=samples_order)
+strip(df_, 'sample', 'f1', by='feature_type', c=feat_type_colors, s=3.2, ax=ax, order=samples_order)
+format_ax(ax, title='f1-score by sample and feature type', ylabel='f1 score', rotx=90, xticks_size=10)
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors, 
+    ax=ax,
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=10,
+    ticks_size=8
+)
 
 # Save
-fig.savefig(path_results + 'clones_f1_by_sample.pdf')
+fig.tight_layout()
+plt.show()
+
+
+# fig.savefig(path_results + 'clones_f1_by_sample.pdf')
 ##############
 
 
@@ -116,19 +118,31 @@ fig.savefig(path_results + 'clones_f1_by_sample.pdf')
 
 
 ############## f1 by model and feat_type
-fig, ax = plt.subplots(figsize=(8, 6.5))
+fig, ax = plt.subplots(figsize=(5, 5))
 
-box(clones, 'model', 'f1', ax=ax, c='#E9E7E7', params=params)
-strip(clones, 'model', 'f1', by='feature_type', c=feat_type_colors, s=3, ax=ax)
-format_ax(clones, ax, title='Clones f1-scores by model and variant selection method', ylabel='f1')
-create_handles(feat_type_colors.keys(), marker='o', colors=None, size=10, width=0.5)
-handles = create_handles(feat_type_colors.keys(), colors=feat_type_colors.values())
-fig.subplots_adjust(right=0.75)
-fig.legend(handles, feat_type_colors.keys(), loc='center', 
-    bbox_to_anchor=(0.85, 0.6), ncol=1, frameon=False, title='Feature selection'
+df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+model_order = (
+    df_.groupby('model')['f1']
+    .mean()
+    .sort_values(ascending=False)
+    .index
 )
-ax.text(1.05, 0.39, f'Mean xgboost: {clones.loc[clones["model"]=="xgboost"]["f1"].mean():.3f}', transform=ax.transAxes)
-ax.text(1.05, 0.36, f'Mean logit: {clones.loc[clones["model"]=="logit"]["f1"].mean():.3f}', transform=ax.transAxes)
+feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
+
+box(df_, 'model', 'f1', ax=ax, c='#E9E7E7', kwargs=params)
+strip(df_, 'model', 'f1', by='feature_type', c=feat_type_colors, s=3, ax=ax)
+format_ax(ax, title='f1-score by model and feature type', ylabel='f1 score')
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors, 
+    ax=ax,
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=10,
+    ticks_size=8
+)
+fig.tight_layout()
 
 # Save
 fig.savefig(path_results + 'clones_f1_by_model.pdf')
@@ -139,21 +153,24 @@ fig.savefig(path_results + 'clones_f1_by_model.pdf')
 
 
 ############## f1 by sample and feat_type
+
 # Sizes
-res = []
-for x in os.listdir(path_main + '/data/CBC_GBC_cells/'):
-    if x.endswith('csv'):
-        d = pd.read_csv(path_main + f'/data/CBC_GBC_cells/{x}', index_col=0)
-        res.append(d.assign(sample=x.split('_')[-1].split('.')[0]))
-CBC_GBC = pd.concat(res, axis=0)
-clones_sizes = CBC_GBC.groupby('GBC').size()
+path_data = '/Users/IEO5505/Desktop/example_mito_exploratory/data/AML_clones/'
+summary_table = pd.read_csv(os.path.join(path_data, 'cells_summary_table.csv'), index_col=0)
+barcodes = pd.read_csv(os.path.join(path_data, 'barcodes.txt'), header=None)
+sizes_df = (
+    summary_table.loc[barcodes[0], :]
+    .groupby('GBC')
+    .size()
+    .reset_index(name='n_cells')
+)
 
-clones['GBC'] = clones['comparison'].map(lambda x: x.split('_')[0])
+df_ = (
+    clones
+    .assign(GBC=[ x.split('_')[0] for x in clones['comparison']])
+    .merge(sizes_df, on='GBC')
+)
 
-csizes = []
-for x in clones['GBC']:
-    csizes.append(clones_sizes[x])
-clones['size'] = csizes
 
 # Viz
 fig, ax = plt.subplots(figsize=(6, 6))

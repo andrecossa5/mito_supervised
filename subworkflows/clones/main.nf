@@ -30,6 +30,6 @@ workflow classification_clones {
         JOB(options)
 
     emit:
-        job_output = options
+        job_output = JOB.out.logs
 
 }

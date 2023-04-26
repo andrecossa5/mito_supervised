@@ -9,5 +9,6 @@
     "GS_mode" : ["random"],
     "dimred" : ["no_dimred", "PCA", "UMAP"],
     "model" : ["kNN"],
+    "score" : "f1",
     "min_cell_number" : [5]
 }
