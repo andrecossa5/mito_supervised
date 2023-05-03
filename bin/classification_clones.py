@@ -155,10 +155,10 @@ path_blacklist = args.blacklist
 if not args.skip:
 
     # Code
-    from mito_utils.utils.helpers import *
-    from mito_utils.preprocessing.preprocessing import *
-    from mito_utils.dimred.dimred import *
-    from mito_utils.supervised.classification import *
+    from mito_utils.utils import *
+    from mito_utils.preprocessing import *
+    from mito_utils.dimred import *
+    from mito_utils.classification import *
 
     # Set logger
     path = os.getcwd() 
@@ -280,7 +280,8 @@ def main():
             logger.info(f'Comparison {comparison} finished: {t.stop()}')
 
         else:
-            logger.info(f'Clone {y.categories[i]} does not reach {min_cell_number} cells. This should not happen here... {t.stop()}')
+            logger.info(f'Clone {y.categories[i]} does not reach {min_cell_number} \
+                        cells. This should not happen here... {t.stop()}')
 
     df = pd.DataFrame(L)
     logger.info(df['f1'].describe())

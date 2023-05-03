@@ -3,31 +3,15 @@ Visualization of clones and samples classification performances.
 """
 
 # Code
-import pickle
-import re
 import os
-import sys
-import gc
-from itertools import chain
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from mito_utils.preprocessing.preprocessing import *
-from mito_utils.plotting.diagnostic_plots import sturges
-from mito_utils.plotting.heatmaps_plots import *
-from mito_utils.utils.helpers import *
+from scipy.interpolate import interp1d 
+from mito_utils.preprocessing import *
+from mito_utils.diagnostic_plots import *
+from mito_utils.heatmaps_plots import *
+from mito_utils.utils import *
+from mito_utils.plotting_base import *
+from matplotlib.gridspec import GridSpec
 matplotlib.use('macOSX')
-
-
-##
-
-
-# Set paths
-# path_clones = '/Users/IEO5505/Desktop/MI_TO/scratch/clones_supervised_report/random_report.csv' 
-path_main = sys.argv[1]
-
-# Read report
-clones = pd.read_csv(path_clones, index_col=0)
-
-############## 
 
 
 ##
@@ -35,521 +19,732 @@ clones = pd.read_csv(path_clones, index_col=0)
 params = {   
     'showcaps' : True,
     'fliersize': 0,
-    'boxprops' : {'edgecolor': 'black', 'linewidth': 0.5}, 
-    'medianprops': {"color": "black", "linewidth": 1},
-    'whiskerprops':{"color": "black", "linewidth": 1}
+    'boxprops' : {'edgecolor': 'black', 'linewidth': .8}, 
+    'medianprops': {"color": "black", "linewidth": 1.5},
+    'whiskerprops':{"color": "black", "linewidth": 1.2}
 }
 
 ##
 
 
-############## f1 by clone and feat_type
-fig, ax = plt.subplots(figsize=(11, 5))
+# Set paths
+path_data = '/Users/IEO5505/Desktop/example_mito/data/'
+path_main = '/Users/IEO5505/Desktop/example_mito/results/supervised_clones/' 
 
+# Read report
+clones = pd.read_csv(
+    os.path.join(path_main, 'reports', 'report_f1.csv'),
+    index_col=0
+)
+
+
+##
+
+
+############## Extended summary, aggregate by sample
+
+# Full summary
+# clones.describe().to_excel(
+#     os.path.join(path_main, 'reports', 'full_aggregate_f1.xlsx')
+# )
+
+# Agg by sample and run summary
+# (
+#     clones
+#     .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+#     .groupby(['sample', 'job'])
+#     .agg('mean')
+#     .reset_index(level=1)
+#     .groupby('sample')
+#     .apply(lambda x: x.sort_values('f1', ascending=False))
+# ).to_excel(
+#     os.path.join(path_main, 'reports', 'sample_job_aggregate_f1.xlsx')
+# )
+
+# Plot
+fig, axs = plt.subplots(1,2, figsize=(13.5, 5), constrained_layout=True)
+
+df_ = (
+    clones
+    .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+    .groupby(['sample', 'job'])
+    .agg('mean')
+)
+
+# Top
+box(df_.iloc[:,:5].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[0], kwargs=params)
+strip(df_.query('f1>=0.7').iloc[:,:5].melt(), 'variable', 'value', c='r', s=3.5, ax=axs[0])
+strip(df_.query('f1<=0.7').iloc[:,:5].melt(), 'variable', 'value', c='k', s=2.5, ax=axs[0])
+
+n_good = df_.query('f1>=0.7').shape[0]
+format_ax(axs[0], ylabel='value', xticks_size=10, rotx=90)
+add_legend(
+    label='Model',
+    colors={'f1 >= 0.7':'r', 'f1 < 0.7':'k'}, 
+    ax=axs[0],
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=12,
+    ticks_size=10
+)
+axs[0].spines['top'].set_visible(False)
+axs[0].spines['right'].set_visible(False)
+axs[0].spines['left'].set_visible(False)
+
+# Bottom
+df_['feature_type'] = df_.reset_index(level=1)['job'].map(lambda x: '_'.join(x.split('_')[:-2])).values
+feat_type_colors = create_palette(df_, 'feature_type', 'Spectral')
+
+box(df_.iloc[:,:5].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[1], kwargs=params)
+strip(
+    df_.loc[:,['accuracy', 'balanced_accuracy', 'precision', 'recall', 'f1', 'feature_type']]
+    .melt(id_vars='feature_type'),
+    'variable', 'value', by='feature_type', c=feat_type_colors, s=2.5, ax=axs[1]
+)
+format_ax(axs[1], xticks_size=10, rotx=90)
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors,
+    ax=axs[1],
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=12,
+    ticks_size=10
+)
+axs[1].spines['top'].set_visible(False)
+axs[1].spines['right'].set_visible(False)
+axs[1].spines['left'].set_visible(False)
+#axs[1].set_yticks([])
+
+# Show
+fig.suptitle(f"{n_good}/{df_.shape[0]} ({n_good/df_.shape[0]*100:.2f}%) 'overall good' models (>=0.7 mean f1, over all sample clones)")
+plt.show()
+
+fig.savefig(
+    os.path.join(path_main, 'images', 'overall_performance_f1.png')
+)
+
+##############
+
+
+##
+
+
+############## Technical summary
+
+# Plot
+colors = {'precision' : '#F0D290', 'recall' : '#DE834D', 'f1' : '#A3423C'}
+
+fig = plt.figure(figsize=(13, 5))
+gs = GridSpec(1, 3, figure=fig, width_ratios=[3, 2, 7])
+
+df_ = (
+    clones
+    .assign(job=lambda x: x['filtering'] + '|' + x['dimred'] + '|' + x['model'] + '|' + x['tuning'])
+    .groupby(['sample', 'job'])
+    .agg('mean')
+    .reset_index(level=1)
+)
+df_[['filtering', 'dimred', 'model', 'tuning']] = df_['job'].str.split('|', expand=True)
+df_ = df_.drop(columns=['job']).reset_index(drop=True)
+
+# Models
+ax1 = fig.add_subplot(gs[0,0])
+box(
+    (
+        df_.loc[:, ['f1', 'precision', 'recall', 'model']]
+        .melt(id_vars='model', var_name='metric', value_name='score')
+    ), 
+    'model', 
+    'score',
+    by='metric', 
+    c=colors, 
+    ax=ax1, 
+    kwargs=params
+)
+format_ax(ax1, xticks_size=10, rotx=90, title='Model', ylabel='value')
+add_legend(
+    label='Metric',
+    colors=colors, 
+    ax=ax1,
+    loc='upper center',
+    bbox_to_anchor=(0.5, -0.3),
+    ncols=3,
+    label_size=10,
+    ticks_size=8
+)
+
+ax1.spines[['top', 'right']].set_visible(False)
+
+# Tuning
+ax2 = fig.add_subplot(gs[0, 1])
+box(
+    (
+        df_.loc[:, ['f1', 'precision', 'recall', 'tuning']]
+        .melt(id_vars='tuning', var_name='metric', value_name='score')
+    ), 
+    'tuning', 
+    'score',
+    by='metric', 
+    c=colors, 
+    ax=ax2, 
+    kwargs=params
+)
+format_ax(ax2, xticks_size=10, rotx=90, title='Hyperparameters tuning', yticks=[])
+ax2.spines[['top', 'right', 'left']].set_visible(False)
+
+# Feature type
+ax3 = fig.add_subplot(gs[0, 2])
+box(
+    (
+        df_.loc[:, ['f1', 'precision', 'recall', 'filtering', 'dimred']]
+        .assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+        .drop(columns=['dimred', 'filtering'])
+        .melt(id_vars='feature_type', var_name='metric', value_name='score')
+    ), 
+    'feature_type', 
+    'score',
+    by='metric', 
+    c=colors, 
+    ax=ax3, 
+    kwargs=params
+)
+format_ax(ax3, xticks_size=10, rotx=90, title='Feature matrix', yticks=[])
+ax3.spines[['top', 'right', 'left']].set_visible(False)
+
+fig.tight_layout()
+plt.show()
+
+##############
+
+
+##
+
+
+############## Overall performance by clone
+
+# Summary
 df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
 clones_order = (
     df_.groupby('comparison')['f1']
-    .mean()
+    .agg('mean')
     .sort_values(ascending=False)
     .index
 )
-feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
-box(df_, 'comparison', 'f1', c='#E9E7E7', ax=ax, kwargs=params, order=clones_order)
-strip(df_, 'comparison', 'f1', by='feature_type', c=feat_type_colors, s=3.2, ax=ax, order=clones_order)
-format_ax(ax, title='f1-score by clone and feature type', ylabel='f1 score', rotx=90, xticks_size=5)
+n_clones = df_['comparison'].unique().size
+good_clones = df_.query('f1>=0.7')['comparison'].unique()
+n_good_clones = good_clones.size
+df_['clone_status'] = np.where(df_['comparison'].isin(good_clones), '>=1 good models', 'No good models')
+
+# Good clones per sample
+(
+    df_.loc[:, ['comparison', 'clone_status', 'sample']]
+    .drop_duplicates()
+    .groupby('sample')
+    .apply(lambda x: x['clone_status'].value_counts())
+    .reset_index(level=1, name='count')
+    .rename(columns={'level_1':'clone_status'})
+    .assign(freq=lambda x: 
+        x['count'] / x.reset_index().groupby('sample')['count'].transform('sum').values
+    )
+).to_excel(
+    os.path.join(path_main, 'reports', 'clones_status_aggregate_f1.xlsx')
+)
+
+##
+
+# Plot
+fig, axs = plt.subplots(2, 1, figsize=(10, 5), sharex=True, sharey=True)
+
+# Topz
+box(df_, 'comparison', 'f1', c='#E9E7E7', ax=axs[0], kwargs=params, order=clones_order)
+strip(df_.query('f1>=0.7'), 'comparison', 'f1', c='r', s=3, ax=axs[0], order=clones_order)
+strip(df_.query('f1<0.7'), 'comparison', 'f1', c='k', s=1.5, ax=axs[0], order=clones_order)
+format_ax(
+    axs[0], 
+    title=f"{n_good_clones}/{n_clones} ({n_good_clones/n_clones*100:.2f}%) clones with at least 1 'good' model", 
+    ylabel='f1 score', 
+    rotx=90, 
+    xticks_size=5,
+    xticks=[]
+    )
 add_legend(
-    label='Feature type',
-    colors=feat_type_colors, 
-    ax=ax,
+    label='Model',
+    colors={'f1 >= 0.7':'r', 'f1 < 0.7':'k'}, 
+    ax=axs[0],
     loc='upper left',
     bbox_to_anchor=(1,1),
     ncols=1,
     label_size=10,
     ticks_size=8
 )
+axs[0].spines['top'].set_visible(False)
+axs[0].spines['right'].set_visible(False)
+axs[1].spines['bottom'].set_visible(False)
+
+# Bottom:
+feat_type_colors = create_palette(df_, 'feature_type', 'Spectral')
+box(df_, 'comparison', 'f1', c='#E9E7E7', ax=axs[1], kwargs=params, order=clones_order)
+strip(df_, 'comparison', 'f1', by='feature_type', c=feat_type_colors, s=2, ax=axs[1], order=clones_order)
+format_ax(
+    axs[1],
+    ylabel='f1 score', 
+    rotx=90,
+    xticks_size=5
+)
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors, 
+    ax=axs[1],
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=10,
+    ticks_size=8
+)
+axs[1].spines['top'].set_visible(False)
+axs[1].spines['right'].set_visible(False)
 
 # Save
 fig.tight_layout()
 plt.show()
+fig.savefig(
+    os.path.join(path_main, 'images', 'performance_by_clone_f1.png')
+)
 
-# fig.savefig(path_results + 'clones_f1.pdf')
 ##############
 
 
 ##
 
 
-############## f1 by sample and feat_type
-fig, ax = plt.subplots(figsize=(6, 5))
+############## Overall performance by clone 2: relationship with clonal prevalence
 
-df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
-samples_order = (
-    df_.groupby('sample')['f1']
-    .mean()
-    .sort_values(ascending=False)
-    .index
-)
-feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
-box(df_, 'sample', 'f1', c='#E9E7E7', ax=ax, kwargs=params, order=samples_order)
-strip(df_, 'sample', 'f1', by='feature_type', c=feat_type_colors, s=3.2, ax=ax, order=samples_order)
-format_ax(ax, title='f1-score by sample and feature type', ylabel='f1 score', rotx=90, xticks_size=10)
-add_legend(
-    label='Feature type',
-    colors=feat_type_colors, 
-    ax=ax,
-    loc='upper left',
-    bbox_to_anchor=(1,1),
-    ncols=1,
-    label_size=10,
-    ticks_size=8
-)
+fig, axs = plt.subplots(1,3,figsize=(15,5))
 
-# Save
-fig.tight_layout()
-plt.show()
-
-
-# fig.savefig(path_results + 'clones_f1_by_sample.pdf')
-##############
-
-
-##
-
-
-
-############## f1 by model and feat_type
-fig, ax = plt.subplots(figsize=(5, 5))
-
-df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
-model_order = (
-    df_.groupby('model')['f1']
-    .mean()
-    .sort_values(ascending=False)
-    .index
-)
-feat_type_colors = create_palette(df_, 'feature_type', 'Set1')
-
-box(df_, 'model', 'f1', ax=ax, c='#E9E7E7', kwargs=params)
-strip(df_, 'model', 'f1', by='feature_type', c=feat_type_colors, s=3, ax=ax)
-format_ax(ax, title='f1-score by model and feature type', ylabel='f1 score')
-add_legend(
-    label='Feature type',
-    colors=feat_type_colors, 
-    ax=ax,
-    loc='upper left',
-    bbox_to_anchor=(1,1),
-    ncols=1,
-    label_size=10,
-    ticks_size=8
-)
-fig.tight_layout()
-
-# Save
-fig.savefig(path_results + 'clones_f1_by_model.pdf')
-##############
-
-
-##
-
-
-############## f1 by sample and feat_type
-
-# Sizes
-path_data = '/Users/IEO5505/Desktop/example_mito_exploratory/data/AML_clones/'
-summary_table = pd.read_csv(os.path.join(path_data, 'cells_summary_table.csv'), index_col=0)
-barcodes = pd.read_csv(os.path.join(path_data, 'barcodes.txt'), header=None)
-sizes_df = (
-    summary_table.loc[barcodes[0], :]
-    .groupby('GBC')
+# Right
+meta = pd.read_csv(os.path.join(path_data, 'cells_meta.csv'), index_col=0)
+df_ = (
+    meta.assign(clonal=lambda x: x['sample'] + '_' + x['GBC'])
+    .groupby('clonal')
     .size()
-    .reset_index(name='n_cells')
+    .reset_index(name='n')
+    .assign(GBC=lambda x: x['clonal'].apply(lambda x: x.split('_')[-1]))
+    .assign(sample=lambda x: x['clonal'].apply(lambda x: '_'.join(x.split('_')[:-1])))
+    .assign(prevalence=lambda x: x['n'] / x.groupby('sample')['n'].transform('sum'))
+    .loc[:, ['GBC', 'prevalence']]
+    .set_index('GBC')
 )
 
 df_ = (
     clones
-    .assign(GBC=[ x.split('_')[0] for x in clones['comparison']])
-    .merge(sizes_df, on='GBC')
+    .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+    .assign(GBC=lambda x: clones['comparison'].apply(lambda x: x.split('_')[0]))
+    .groupby(['GBC', 'job'])
+    .agg('mean')
+    .reset_index()
+    .loc[:, ['GBC', 'f1', 'precision', 'recall']]
+    .set_index('GBC')
+    .join(df_)
+    .sort_values('f1', ascending=False)
 )
 
-
-# Viz
-fig, ax = plt.subplots(figsize=(6, 6))
-scatter(clones, 'size', 'f1', c='#606060', s=3, ax=ax)
-x = clones['size']
-y = clones['f1']
-fitted_coefs = np.polyfit(x, y, 1)
-y_hat = np.poly1d(fitted_coefs)(x)
-ax.plot(x, y_hat, linestyle='dotted', linewidth=2, color='r')
+# Fq
+x = df_['prevalence']
+y = df_['f1']
 corr = np.corrcoef(x, y)[0,1]
-ax.text(0.6, 0.9, f"Pearson's r: {corr:.2f}", transform=ax.transAxes)
-format_ax(clones, ax, title='f1-clone size correlation', xlabel='Clone size', ylabel='f1')
+
+axs[0].plot(x, y, 'ko', markersize=2)
+sns.regplot(x=x, y=y, ax=axs[0], scatter=False)
+format_ax(
+    axs[0],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Clonal prevalence', 
+    ylabel='f1'
+)
+
+x = df_['prevalence']
+y = df_['precision']
+corr = np.corrcoef(x, y)[0,1]
+
+axs[1].plot(x, y, 'ko', markersize=2)
+sns.regplot(x=x, y=y, ax=axs[1], scatter=False)
+format_ax(
+    axs[1],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Clonal Prevalence', 
+    ylabel='Precision'
+)
+
+x = df_['prevalence']
+y = df_['recall']
+corr = np.corrcoef(x, y)[0,1]
+
+axs[2].plot(x, y, 'ko', markersize=2)
+sns.regplot(x=x, y=y, ax=axs[2], scatter=False)
+format_ax(
+    axs[2],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Clonal Prevalence', 
+    ylabel='Recall'
+)
+
+fig.tight_layout()
+plt.show()
+############## Overall performance by sample
+
+
+##
+
+
+############## Overall performance by sample
+fig, axs = plt.subplots(1,3,figsize=(15, 5))
+
+# Left
+df_ = (
+    clones.loc[:, ['sample','ncells']]
+    .drop_duplicates()
+    .set_index('sample')
+    .loc[['AML_clones', 'MDA_clones', 'MDA_lung', 'MDA_PT']]
+    .reset_index()
+)
+
+bar(df_, x='sample', y='ncells', c='lightgrey', ax=axs[0], s=0.75)
+format_ax(axs[0], title='n cells', ylabel='n', xticks=df_['sample'], yticks=[])
+axs[0].spines['top'].set_visible(False)
+axs[0].spines['left'].set_visible(False)
+axs[0].spines['right'].set_visible(False)
+
+# Center
+df_ = (
+    clones.loc[:, ['sample','n_clones_analyzed']]
+    .drop_duplicates()
+    .set_index('sample')
+    .loc[['AML_clones', 'MDA_clones', 'MDA_lung', 'MDA_PT']]
+    .reset_index()
+)
+
+bar(df_, x='sample', y='n_clones_analyzed', c='lightgrey', ax=axs[1], s=0.75)
+format_ax(axs[1], title='n clones', xticks=df_['sample'], yticks=[])
+axs[1].spines['top'].set_visible(False)
+axs[1].spines['left'].set_visible(False)
+axs[1].spines['right'].set_visible(False)
+
+# Right
+df_ = (
+    clones
+    .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+    .groupby(['sample', 'job'])
+    .agg('mean')
+    .reset_index()
+    .assign(feature_type=lambda x: x['job'].map(lambda x: '_'.join(x.split('_')[:-2])))
+    .drop(columns=['job'])
+)
+samples_order = ['AML_clones', 'MDA_clones', 'MDA_lung', 'MDA_PT']
+feat_type_colors = create_palette(df_, 'feature_type', 'Spectral')
+box(df_, 'sample', 'f1', c='#E9E7E7', ax=axs[2], kwargs=params, order=samples_order)
+strip(df_, 'sample', 'f1', by='feature_type', c=feat_type_colors, s=4, ax=axs[2], order=samples_order)
+format_ax(axs[2], title='Classification performance', ylabel='f1 score', xticks_size=10)
+add_legend(
+    label='Feature type',
+    colors=feat_type_colors, 
+    ax=axs[2],
+    loc='upper left',
+    bbox_to_anchor=(1,1),
+    ncols=1,
+    label_size=10,
+    ticks_size=8
+)
+axs[2].spines['top'].set_visible(False)
+axs[2].spines['right'].set_visible(False)
 
 # Save
 fig.tight_layout()
-fig.savefig(path_results + 'clones_size_f1_corr.pdf')
+plt.show()
+
+fig.savefig(
+    os.path.join(path_main, 'images', 'performance_by_sample_f1.png')
+)
+
 ##############
 
 
-
 ##
 
 
-############## 
-# For each sample (3x) clones, what are the top 3 analyses (median f1 score across clones)? 
-# Intersection among selected SNVs??
+############## Overall performance by sample 2: relationship with clonal complexity
 
-# Save top3 for easy quering
-sample_names = clones['sample'].unique()
-top_3 = {}
-for sample in sample_names:
-    top_3[sample] = clones.query('sample == @sample').groupby(['analysis']).agg(
-        {'f1':np.median}).sort_values(
-        'f1', ascending=False).index[:3].to_list()
+fig, axs = plt.subplots(1,3,figsize=(15,5))
 
-with open(path_clones + 'top3.pkl', 'wb') as f:
-    pickle.dump(top_3, f)
+# Left
+# df_ = clones.assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+# clones_order = (
+#     df_.groupby('comparison')['f1']
+#     .agg('mean')
+#     .sort_values(ascending=False)
+#     .index
+# )
+# good_clones = df_.query('f1>=0.7')['comparison'].unique()
+# df_['clone_status'] = np.where(df_['comparison'].isin(good_clones), 
+#                                 '>=1 good models', 'No good models')
+# 
+# df = df_
+# df['sample'] = pd.Categorical(df['sample']).remove_unused_categories()
+# df['clone_status'] = pd.Categorical(df['clone_status']).remove_unused_categories()
+# data = pd.crosstab(df['sample'], df['clone_status'], normalize='index')
+# data = data.sort_values('>=1 good models')
+# data_cum = data.cumsum(axis=1)
+# 
+# ys = data.index.categories
+# labels = data.columns.categories
+# 
+# colors = {'>=1 good models':'b', 'No good models':'lightblue'}
+# for i, x in enumerate(labels):
+#     widths = data.values[:,i]
+#     starts = data_cum.values[:,i] - widths
+#     axs[0].barh(ys, widths, left=starts, height=0.95, label=x, color=colors[x])
+#     
+# # Format
+# axs[0].set_xlim(-0.01, 1.01)
+# format_ax(axs[0], xlabel='Frequency %')
+# add_legend(label='clone_status', colors=colors, ax=axs[0], only_top=10, ncols=2,
+#     loc='lower left', bbox_to_anchor=(.18, 1), ticks_size=7  
+# )
 
-# Load top3 variants for each sample clones, and visualize their intersection (i.e., J.I.), by sample
-top3_sample_variants = {}
-for sample in sample_names:
-        var_dict = {}
-        top_3_sample = top_3[sample]
-        for x in os.listdir(path_clones):
-            if bool(re.search('|'.join(top_3_sample), x)):
-                n = '_'.join(x.split('.')[0].split('_')[2:-2])
-                df_ = pd.read_excel(path_clones + x, index_col=0)
-                var_dict[n] = df_.index.unique().to_list()
-        top3_sample_variants[sample] = var_dict
+##
 
-# Sample a
-fig, axs = plt.subplots(1, 3, figsize=(12,5))
+# Right
+meta = pd.read_csv(os.path.join(path_data, 'cells_meta.csv'), index_col=0)
+df_ = (
+    meta.groupby(['sample', 'GBC'])
+    .size()
+    .reset_index(name='n')
+    .assign(prevalence=lambda x: x['n'] / x.groupby('sample')['n'].transform('sum'))
+)
 
-for k, sample in enumerate(top3_sample_variants):
-    n_analysis = len(top3_sample_variants[sample].keys())
-    JI = np.zeros((n_analysis, n_analysis))
-    for i, l1 in enumerate(top3_sample_variants[sample]):
-        for j, l2 in enumerate(top3_sample_variants[sample]):
-            x = top3_sample_variants[sample][l1]
-            y = top3_sample_variants[sample][l2]
-            JI[i, j] = ji(x, y)
-    JI = pd.DataFrame(data=JI, index=None, columns=top3_sample_variants[sample].keys())
+def SH(df, sample):
+    freqs = df.query('sample == @sample')['prevalence'].values
+    return -np.sum(freqs * np.log10(freqs))
 
-    plot_heatmap(JI, palette='mako', ax=axs[k], title=sample, y_names=False,
-        x_names_size=10, y_names_size=0, annot=True, annot_size=10, cb=True, label='JI variants'
-    )
+df_ = pd.Series({ x : SH(df_, x) for x in df_['sample'].unique() }).to_frame('sh')
+df_ = (
+    clones
+    .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+    .groupby(['sample', 'job'])
+    .agg('mean')
+    .reset_index()
+    .loc[:, ['sample', 'f1', 'precision', 'recall']]
+    .join(df_, on='sample')
+    .sort_values('f1')
+)
+
+# Fq
+x = df_['sh']
+y = df_['f1']
+corr = np.corrcoef(x, y)[0,1]
+
+axs[0].plot(x, y, 'ko', markersize=4)
+sns.regplot(x=x, y=y, ax=axs[0], scatter=False)
+format_ax(
+    axs[0],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Shannon Entropy', 
+    ylabel='f1'
+)
+
+x = df_['sh']
+y = df_['precision']
+corr = np.corrcoef(x, y)[0,1]
+
+axs[1].plot(x, y, 'ko', markersize=4)
+sns.regplot(x=x, y=y, ax=axs[1], scatter=False)
+format_ax(
+    axs[1],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Shannon Entropy', 
+    ylabel='Precision'
+)
+
+x = df_['sh']
+y = df_['recall']
+corr = np.corrcoef(x, y)[0,1]
+
+axs[2].plot(x, y, 'ko', markersize=4)
+sns.regplot(x=x, y=y, ax=axs[2], scatter=False)
+format_ax(
+    axs[2],
+    title=f"Pearson's rho: {corr:.2f}", 
+    xlabel='Shannon Entropy', 
+    ylabel='Recall'
+)
 
 fig.tight_layout()
-fig.savefig(path_results + 'overlap_selected_vars.pdf')
+plt.show()
+
 ##############
 
 
 ##
 
 
+############## Top 3 models
 
-############## f1 by clone, only top3 variants
-heatmap_sample = 'MDA'
-top_l = top_3[heatmap_sample]
-df_ = clones.query('sample == @heatmap_sample and analysis in @top_l')
-colors = {'MDA':'#DA5700', 'AML':'#0074DA', 'PDX':'#0F9221'}
-
-fig, ax = plt.subplots(figsize=(6, 6))
-
-box(df_, 'comparison', 'f1', c='#E9E7E7', ax=ax)
-strip(df_, 'comparison', 'f1', s=6, c=colors[heatmap_sample], ax=ax)
-clone_names = [ f'{x.split("_")[0][:5]}...' for x in df_['comparison'].unique() ] 
-format_ax(ax, title=f'{heatmap_sample} clones f1-scores (only top analyses)', xticks=clone_names, 
-    xlabel='Clones', ylabel='f1', xticks_size=5)
-ax.set(ylim=(0,1.05))
-
-perfs = clones.query('sample == @heatmap_sample').groupby(
-    ['analysis']).agg({'f1':np.median}).sort_values(by='f1', ascending=False).values
-ax.text(0.1, 0.86, 'Top analyses:', transform=ax.transAxes)
-ax.text(0.1, 0.82, f'1. {top_l[0]} (median f1: {perfs[0][0]:.2f})', transform=ax.transAxes)
-ax.text(0.1, 0.78, f'2. {top_l[1]} (median f1: {perfs[1][0]:.2f})', transform=ax.transAxes)
-ax.text(0.1, 0.74, f'3. {top_l[2]} (median f1: {perfs[2][0]:.2f})', transform=ax.transAxes)
-
-# Save
-fig.tight_layout()
-
-plt.show()
-fig.savefig(path_results + f'{heatmap_sample}_clones_f1_only_top3.pdf')
-# ##############
-
-
-##
-plt.show()
-
-
-############## 
-# For the sample top3 analysis on the clone task, what are the AF profiles of the variants selected?
-# Which relatinship can we visualize among clone cells, using:
-# 1) hclustering of cell x var AFM 
-# 2) hclustering of a cell x cell similarity matrix?
-path_data = path_main + 'data/'
-path_distances = path_main + 'results_and_plots/distances/'
-
-# Here we go
-if not os.path.exists(path_results + 'top_3'):
-    os.mkdir(path_results + 'top_3')
-os.chdir(path_results + 'top_3')
-
-if not os.path.exists(heatmap_sample):
-    os.mkdir(heatmap_sample)
-os.chdir(heatmap_sample)
-
-# Read data and create colors
-afm = read_one_sample(path_main, heatmap_sample)
-clone_colors = create_palette(afm.obs, 'GBC', palette=sc.pl.palettes.default_20)
-gc.collect()
-
-# Fast or not?
-L = [ '_'.join(x.split('_')[1:-1]) for x in top_3[heatmap_sample] ]
-if fast == 'fast':
-    to_run = [ L[0] ]
-else:
-    to_run = L
-
-# For the analysis to_run
-for analysis in to_run:
-    print(analysis)
-
-    a_ = analysis.split('_') 
-    filtering = a_[0]
-    min_cell_number = int(a_[1])
-    min_cov_treshold = int(a_[2])
-
-    # Filter cells and vars
-    a_cells, a = filter_cells_and_vars(
-        afm, 
-        variants=top3_sample_variants[heatmap_sample][analysis],
-        min_cell_number=min_cell_number,
-        min_cov_treshold=min_cov_treshold,
-    )
-    gc.collect()
-
-    # Control vars...
-    print(analysis)
-    print(a)
-    assert all([ var in top3_sample_variants[heatmap_sample][analysis] for var in a.var_names ])
-
-    # Get info!
-    if not os.path.exists(path_results + f'top_3/{heatmap_sample}/{analysis}/'):
-
-        os.mkdir(path_results + f'top_3/{heatmap_sample}/{analysis}/')
-        os.chdir(path_results + f'top_3/{heatmap_sample}/{analysis}/')
-
-        # 1-Viz selected variants properties
-        fig, axs = plt.subplots(1, 2, figsize=(11, 5), constrained_layout=True) 
-        
-        colors = {'non-selected':'grey', 'selected':'red'} 
-        to_plot = a_cells.copy()
-        to_plot.X[np.isnan(to_plot.X)] = 0 
-
-        # Vafs distribution
-        for i, var in enumerate(a_cells.var_names):
-            x = to_plot.X[:, i]
-            x = np.sort(x)
-            if var in a.var_names:
-                axs[0].plot(x, '--', color=colors['selected'], linewidth=0.5)
-            else:
-                axs[0].plot(x, '--', color=colors['non-selected'], linewidth=0.2)
-        format_ax(pd.DataFrame(x), ax=axs[0], title='Ranked AFs', xlabel='Cell rank', ylabel='AF')
-
-        # Vafs summary stats
-        df_ = summary_stats_vars(to_plot, variants=None).drop('median_coverage', axis=1).reset_index(
-            ).rename(columns={'index' : 'variant'}).assign(
-            is_selected=lambda x: np.where(x['variant'].isin(a.var_names), 'selected', 'non-selected')).melt(
-            id_vars=['variant', 'is_selected'], var_name='summary_stat')
-
-        box(df_, 'summary_stat', 'value', by='is_selected', c=colors, ax=axs[1], params=params)
-        format_ax(df_, ax=axs[1], title='Summary statistics', 
-            xticks=df_['summary_stat'].unique(), xlabel='', ylabel='Value'
-        )
-        handles = create_handles(colors.keys(), marker='o', colors=colors.values(), size=10, width=0.5)
-        axs[1].legend(handles, colors.keys(), title='Selection', loc='center left', 
-            bbox_to_anchor=(1, 0.5), ncol=1, frameon=False
-        )
-        fig.suptitle(f'{heatmap_sample}: analysis {analysis}')
-
-        # Save
-        fig.savefig(f'{analysis}_variants.pdf')
-
-        # 2-Viz cell x var and cell x cell heatmaps
-        with PdfPages(f'{heatmap_sample}_{analysis}_heatmaps.pdf') as pdf:
-
-            a = nans_as_zeros(a)
-            cell_anno_clones = [ clone_colors[clone] for clone in a.obs['GBC'] ]
-
-            # Viz 
-            if a.var_names.size < 100:
-                size = 3
-            else:
-                size = 1
-            g = cells_vars_heatmap(a, cell_anno=cell_anno_clones, 
-                anno_colors={ k:v for k,v in clone_colors.items() if k in a.obs['GBC'].unique() }, 
-                heat_label='AF', legend_label='Clone', figsize=(11, 8), title=f'{heatmap_sample}: {analysis}',
-                xticks_size=size
-            )
-            pdf.savefig() 
-            
-            # Prep d for savings
-            analysis_d = {}
-            analysis_d['cells'] = a.obs_names.to_list()
-            analysis_d['vars'] = a.var_names.to_list()
-            analysis_d['dendrogram'] = g.dendrogram_row.dendrogram
-            analysis_d['linkage'] = g.dendrogram_row.linkage
-            
-            with open('cell_x_var_hclust.pickle', 'wb') as f:
-                pickle.dump(analysis_d, f)
-
-            # 3-Viz all cell x cell similarity matrices obtained from the filtered AFM one.
-            for x in os.listdir(path_distances):
-                if bool(re.search(f'{heatmap_sample}_{analysis}_', x)):
-
-                    print(x)
-                    a_ = x.split('_')[:-1]
-                    metric = a_[-1]
-                    with_nans = 'w/i nans' if a_[-2] == 'yes' else 'w/o nans'
-                    D = sc.read(path_distances + x)
-                    gc.collect()
-
-                    if a.shape[0] == D.shape[0]:
-                        print(a)
-                        print(D)
-                        assert (a.obs_names == D.obs_names).all()
-                        D.obs['GBC'] = a.obs['GBC']
-
-                        # Draw clustered similarity matrix heatmap 
-                        heat_title = f'{heatmap_sample} clones: {filtering}_{min_cell_number}_{min_cov_treshold}, {metric} {with_nans}'
-                        g = cell_cell_dists_heatmap(D, 
-                            cell_anno=cell_anno_clones, 
-                            anno_colors={ k:v for k,v in clone_colors.items() if k in a.obs['GBC'].unique() },
-                            heat_label='Similarity', legend_label='Clone', figsize=(11, 6.5), 
-                            title=heat_title
-                        )
-                        pdf.savefig()
-
-                        analysis_d = {}
-                        analysis_d['dendrogram'] = g.dendrogram_row.dendrogram
-                        analysis_d['linkage'] = g.dendrogram_row.linkage
-
-                        with open(f'similarity_{"_".join(a_)}_hclust.pickle', 'wb') as f:
-                            pickle.dump(analysis_d, f)
-
-                    else:
-                        print(f'{x} not added...')
-
-            plt.close()
-
-    else:
-        print(f'Analysis {analysis} hclusts have been already computed...')
-#############
-
-
-##
-
-
-############# 
-# For each sample top3 analysis on the clone task, what is the number of selected variants?
-d = {}
-for sample in top3_sample_variants:
-    n_vars = {}
-    for analysis in top3_sample_variants[sample]:
-        n_vars[analysis] = len(top3_sample_variants[sample][analysis])
-    d[sample] = n_vars
-df_ = pd.DataFrame(d).reset_index().rename(columns={'index':'analysis'}).melt(
-    id_vars='analysis', var_name='sample', value_name='n_vars').dropna()
-
-# Viz 
-colors = {'MDA':'#DA5700', 'AML':'#0074DA', 'PDX':'#0F9221'}
-fig, ax = plt.subplots(figsize=(6,7), constrained_layout=True)
-bar(df_, 'n_vars', x=None, by='sample', c=colors, ax=ax, s=0.75, annot_size=10)
-format_ax(df_, ax=ax, xticks=df_['analysis'], rotx=90, 
-    ylabel='n variants', title='n variants selected by the top 3 analyses'
-)
-handles = create_handles(colors.keys(), marker='o', colors=colors.values(), size=10, width=0.5)
-ax.legend(handles, colors.keys(), title='Sample', loc='center', 
-    bbox_to_anchor=(1.1, 0.5), ncol=1, frameon=False
-)
-
-# Save
-fig.savefig(path_results + 'n_top3_selected_variants.pdf')
-################
-
-
-##
-
-
-# ############## 
-# For each sample (3x) clones, what are the clones that are consistently predictable in the top analyses? 
-# What are their features? 
-top_clones_d = {}
-for sample in clones['sample'].unique():
-    top_analyses = top_3[sample]
-    top_clones = clones.query('sample == @sample and analysis in @top_analyses').groupby(['comparison']).agg(
-        {'f1':np.median}).sort_values(
-        'f1', ascending=False).query('f1 > 0.5').index.to_list()
-    top_clones_stats = clones.query(
-        'sample == @sample and analysis in @top_analyses and comparison in @top_clones'
-        )
-    top_clones_d[sample] = {'clones' : top_clones, 'stats' : top_clones_stats}
-
-print(f'Top clones: {top_clones_d}')
-
-# Here we go...
-if len(top_clones_d[heatmap_sample]['clones']) > 0:
-
-    best_for_each_top_clone_df = top_clones_d[heatmap_sample]['stats'].sort_values(
-        'f1', ascending=False).groupby('comparison').head(1).loc[
-            :, ['feature_type', 'min_cell_number', 'min_cov_treshold', 'comparison', 'model']
-        ].assign(
-            clone=lambda x: x['comparison'].map(lambda y: y.split('_')[0])
-        ).set_index('clone').drop('comparison', axis=1)
-
-    # For each top classified clone in that sample, and its top analysis...
-    for i in range(best_for_each_top_clone_df.shape[0]):
-        # Get top clone id, and its top classification analysis options
-        topper = best_for_each_top_clone_df.index[i]
-        filtering = best_for_each_top_clone_df['feature_type'][i]
-        min_cell_number = best_for_each_top_clone_df['min_cell_number'][i]
-        min_cov_treshold = best_for_each_top_clone_df['min_cov_treshold'][i]
-        model = best_for_each_top_clone_df['model'][i]
-
-        # Viz
-        print(topper)
-        fig = viz_clone_variants(
-            afm, topper, 
-            sample=heatmap_sample, path=path_clones, 
-            filtering=filtering, min_cell_number=min_cell_number, 
-            min_cov_treshold=min_cov_treshold, model=model, 
-            figsize=(10,10)
-        )
-        
-        fig.savefig(path_results + f'top_3/{heatmap_sample}/{topper}_features.pdf')
-################
-
-
-##
-
-
-################ Method rankings, so far
-
-c = { 0 : '#097CAE', 50 : '#09AE50'}
-for sample in ['AML', 'MDA', 'PDX']:
+# Data
+df_ = (
     
-    for min_cell_number in [0, 50]:
+    clones
+    .groupby(['sample', 'comparison'])
+    .apply(lambda x: 
+        x
+        .iloc[:,:5]
+        .sort_values('f1', ascending=False)
+        .head(3)
+    )
+    .droplevel(2)
+    .sort_values(by='f1', ascending=False)
+    .reset_index()
+    
+)
 
-        fig, ax = plt.subplots(figsize=(8, 5))
+df_['GBC'] = df_['comparison'].str.split('_').map(lambda x: f'{x[0][:6]}...')
 
-        query = 'sample == @sample and min_cell_number == 50'
-        idx = clones.query(query).groupby(
-            'feature_type').median().sort_values(by='f1', ascending=False).index
+# Vix
+samples_order = ['AML_clones', 'MDA_clones', 'MDA_lung', 'MDA_PT']
+colors = { s:c for s,c in zip(samples_order, sc.pl.palettes.vega_10) }
 
-        sns.boxplot(clones.query(query), x='feature_type', y='f1',
-            ax=ax, saturation=0.55, order=idx, color=c[min_cell_number])
-        format_ax(ax, xlabel='', title=f'{sample}: {min_cell_number} min_cell_number')
-        
-        fig.savefig(path_results + f'{sample}_{min_cell_number}.pdf')
-        
+# Three good
+fig, axs = plt.subplots(1,3,figsize=(11,3.5), sharex=True)
+for (ax, sample) in zip(axs, samples_order[:-1]):
+    n_clones = df_.query('sample == @sample')['GBC'].unique().size
+    strip(
+        df_
+        .query('sample == @sample'), 
+        'GBC',
+        'f1',
+        by='feature_type',
+        c=colors[sample], 
+        s=5, 
+        ax=ax
+    )
+    ax.set(ylim=(-0.1,1.1))
+    ax.hlines(0.7, 0, n_clones, 'k', 'dashed')
+    
+    medians = (
+        df_.query('sample == @sample')
+        .groupby('GBC')['f1']
+        .agg('median')
+        .sort_values(ascending=False)
+    )
+    for i, y in enumerate(medians):
+        ax.hlines(y, i-.25, i+.25, '#4f4e4a', zorder=2)
+    
+    format_ax(
+        ax, 
+        title=sample, 
+        xlabel='Ranked clones',
+        ylabel='f1',
+        rotx=0,
+        xticks=[],
+        xticks_size=6
+    )
+    ax.spines[['top', 'right']].set_visible(False)
+    
+    median_f1 = np.median(df_.query('sample == @sample')['f1'])
+    std_f1 = np.std(df_.query('sample == @sample')['f1'])
+    median_precision = np.median(df_.query('sample == @sample')['precision'])
+    std_precision = np.std(df_.query('sample == @sample')['precision'])
+    median_recall = np.median(df_.query('sample == @sample')['recall'])
+    std_recall = np.std(df_.query('sample == @sample')['recall'])
+    
+    ax.text(0.05, 0.71, '0.7', transform=ax.transAxes)
+    ax.text(0.05, 0.19, 
+        f'precision: {median_precision:.2f} +-{std_precision:.2f}', 
+        transform=ax.transAxes
+    )
+    ax.text(0.05, 0.12, 
+        f'recall: {median_recall:.2f} +-{std_recall:.2f}', 
+        transform=ax.transAxes
+    )
+    ax.text(0.05, 0.05, 
+        f'f1: {median_f1:.2f} +-{std_f1:.2f}', 
+        transform=ax.transAxes
+    )
 
+fig.suptitle('Top 3 models')
+fig.tight_layout()
+plt.show()
+
+##
+    
+# MDA_PT    
+sample = 'MDA_PT'
+n_clones = df_.query('sample == @sample')['GBC'].unique().size
+
+fig, ax = plt.subplots(figsize=(11,3))
+strip(
+    df_
+    .query('sample == @sample'), 
+    'GBC',
+    'f1',
+    by='feature_type',
+    c=colors[sample], 
+    s=5, 
+    ax=ax
+)
+ax.set(ylim=(-0.1,1.1))
+ax.hlines(0.7, 0, n_clones, 'k', 'dashed')
+format_ax(
+    ax, 
+    title=f'{sample}',
+    xlabel='Ranked clones', 
+    ylabel='f1',
+    xticks=[],
+    rotx=90
+)
+
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+medians = (
+    df_.query('sample == @sample')
+    .groupby('GBC')['f1']
+    .agg('median')
+    .sort_values(ascending=False)
+)
+for i, y in enumerate(medians):
+    ax.hlines(y, i-.25, i+.25, '#4f4e4a', zorder=2)
+    
+median_f1 = np.median(df_.query('sample == @sample')['f1'])
+std_f1 = np.std(df_.query('sample == @sample')['f1'])
+median_precision = np.median(df_.query('sample == @sample')['precision'])
+std_precision = np.std(df_.query('sample == @sample')['precision'])
+median_recall = np.median(df_.query('sample == @sample')['recall'])
+std_recall = np.std(df_.query('sample == @sample')['recall'])
+
+ax.text(0.05, 0.71, '0.7', transform=ax.transAxes)
+ax.text(0.75, 0.94, 
+    f'precision: {median_precision:.2f} +-{std_precision:.2f}', 
+    transform=ax.transAxes
+)
+ax.text(0.75, 0.87, 
+    f'recall: {median_recall:.2f} +-{std_recall:.2f}', 
+    transform=ax.transAxes
+)
+ax.text(0.75, 0.80, 
+    f'f1: {median_f1:.2f} +-{std_f1:.2f}', 
+    transform=ax.transAxes
+)
+
+fig.tight_layout()
+plt.show()
+##############
+
+
+##
+
+
+############## 
+
+# ...
