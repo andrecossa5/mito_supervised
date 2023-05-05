@@ -96,8 +96,8 @@ n_combos = args.ncombos
 n = args.ntop
 
 # Paths
-path_data = os.path.join(path_main, '/data/')
-path_results = os.path.join(path_main, 'results/supervised_clones/top_models/')
+path_data = os.path.join(path_main, 'data')
+path_results = os.path.join(path_main, 'results/supervised_clones/top_models')
 path_clones = os.path.join(path_main, 'results/supervised_clones/reports/report_f1.csv')
 
 ##
