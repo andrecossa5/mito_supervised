@@ -96,7 +96,7 @@ n_combos = args.ncombos
 n = args.ntop
 
 # Paths
-path_data = os.path.join(path_main, 'data')
+path_data = os.path.join(path_main, '/data/')
 path_results = os.path.join(path_main, 'results/supervised_clones/top_models/')
 path_clones = os.path.join(path_main, 'results/supervised_clones/reports/report_f1.csv')
 
@@ -131,10 +131,12 @@ def main():
         .query('sample == @sample')
         .assign(job=lambda x: x['filtering'] + '|' + x['dimred'] + '|' + x['model'] + '|' + x['tuning'])
         .groupby('job')
-        .agg('mean')
+        .agg('mean', numeric_only=True)
         .sort_values('f1', ascending=False)
         .head(n)
     )
+    
+    clones.shape
     top_models = top_models.iloc[:, 5:]
     
     top_dict = { }
