@@ -138,8 +138,6 @@ def main():
     top_models = top_models.iloc[:, 5:]
     
     top_dict = { }
-    print('OK')
-    
     for i in range(n):
         s = top_models.iloc[i,:]
         filtering, dimred, model, tuning = s.name.split('|')
@@ -161,7 +159,7 @@ def main():
     for job in top_dict:
         
         # Get options
-        model_options = top_dict[model]
+        model_options = top_dict[job]
         filtering = model_options['filtering']
         dimred = model_options['dimred']
         min_cell_number = model_options['min_cell_number']
@@ -211,10 +209,10 @@ def main():
             Y = one_hot_from_labels(y)
 
         # One per clone
-        
         L_performance = []
         d_results = {}
         
+        # Here we go
         for i in range(Y.shape[1]):  
             
             t = Timer()
@@ -227,7 +225,7 @@ def main():
 
             # Classification
             results = classification(
-                X, y_, key=model, GS=True, GS_mode='random', # GS_mode
+                X, y_, key=model, GS=True, GS_mode=GS_mode,
                 score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1,
                 full_output=True, feature_names=a.var_names
             )
