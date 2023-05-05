@@ -138,6 +138,8 @@ def main():
     top_models = top_models.iloc[:, 5:]
     
     top_dict = { }
+    print('OK')
+    
     for i in range(n):
         s = top_models.iloc[i,:]
         filtering, dimred, model, tuning = s.name.split('|')
