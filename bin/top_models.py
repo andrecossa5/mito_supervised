@@ -180,7 +180,7 @@ def main():
                 min_cell_number=min_cell_number, 
                 min_cov_treshold=min_cov_treshold, 
                 nproc=ncores, 
-                path_=path
+                path_=path_results
             )
 
             # Extract X, y
