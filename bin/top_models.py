@@ -107,11 +107,7 @@ path_clones = os.path.join(path_main, 'results/supervised_clones/reports/report_
 def main():
     
     # Logger
-    logger = set_logger(
-        path_results, 
-        f'log_top_{sample}.txt')
-    )
-    
+    logger = set_logger(path_results, f'log_top_{sample}.txt')
     logger.info(
         f""" 
         Execute top models final evaluation: \n
