@@ -19,7 +19,6 @@ from mito_utils.classification import *
 from mito_utils.plotting_base import *
 from mito_utils.heatmaps_plots import *
 from matplotlib.gridspec import GridSpec
-matplotlib.use('macOSX')
 
 ########################################################################
 
