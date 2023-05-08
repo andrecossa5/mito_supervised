@@ -10,13 +10,13 @@ import re
 import pickle
 import matplotlib
 
-from Cellula.plotting._plotting import *
 from mito_utils.utils import *
 from mito_utils.preprocessing import *
 from mito_utils.dimred import *
 from mito_utils.clustering import *
 from mito_utils.classification import *
 from mito_utils.plotting_base import *
+from mito_utils.embeddings_plots import *
 from mito_utils.heatmaps_plots import *
 from matplotlib.gridspec import GridSpec
 
