@@ -140,7 +140,7 @@ sample = args.sample
 dimred = args.dimred
 filtering = args.filtering if dimred == 'no_dimred' else 'pegasus'
 model = args.model
-ncombos = args.ncombos
+n_combos = args.ncombos
 ncores = args.ncores 
 score = args.score
 min_cell_number = args.min_cell_number
@@ -186,7 +186,7 @@ def main():
         --filtering {filtering} 
         --dimred {dimred} 
         --model {model}
-        --ncombos {ncombos} 
+        --ncombos {n_combos} 
         --score {score} 
         --min_cell_number {min_cell_number} 
         --min_cov_treshold {min_cov_treshold}
@@ -250,39 +250,44 @@ def main():
     # Here we go
     L = []
     for i in range(Y.shape[1]):  
-        
+            
+        t = Timer()
         t.start()
-        comparison = f'{y.categories[i]}_vs_rest' 
-        logger.info(f'Starting comparison {comparison}, {i+1}/{Y.shape[1]}...')
-
+            
+        comparison = f'{y.categories[i]}_vs_rest'
         y_ = Y[:,i]
+            
+        logger.info(f'Starting comparison {comparison} ({i+1}/{Y.shape[1]})...')
 
-        # Check numbers 
+        # Classification
+        results = classification(
+            X, y_, key=model, GS=True, GS_mode=GS_mode,
+            score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1,
+            full_output=True, feature_names=a.var_names
+        )
+            
+        # Performance dict
+        results['performance_dict'] |= {
+            'sample' : sample,
+            'filtering' : filtering, 
+            'dimred' : dimred,
+            'min_cell_number' : min_cell_number,
+            'min_cov_treshold' : min_cov_treshold,
+            'ncells_clone' : y_.sum(),
+            'ncells_sample' : ncells,
+            'n_clones_analyzed' : n_clones_analyzed,
+            'n_features' : X.shape[1],
+            'model' : model,
+            'tuning' : GS_mode,
+            'score_for_tuning' : score,
+            'comparison' : comparison
+        }         
+            
+        # Results
+        L.append(results['performance_dict'])
+        logger.info(f'Finished {comparison} ({i+1}/{Y.shape[1]}): {t.stop()}')
 
-        if np.sum(y_) > min_cell_number:
-
-            d = classification(X, y_, key=model, GS=True, GS_mode=GS_mode,
-                            score=score, n_combos=ncombos, cores_model=ncores, cores_GS=1)
-            d |= {
-                'sample' : sample,
-                'filtering' : filtering, 
-                'dimred' : dimred,
-                'min_cell_number' : min_cell_number,
-                'min_cov_treshold' : min_cov_treshold,
-                'ncells' : ncells,
-                'n_clones_analyzed' : n_clones_analyzed,
-                'n_features' : X.shape[1],
-                'model' : model,
-                'score_for_tuning' : score,
-                'comparison' : comparison
-            }         
-            L.append(d)
-            logger.info(f'Comparison {comparison} finished: {t.stop()}')
-
-        else:
-            logger.info(f'Clone {y.categories[i]} does not reach {min_cell_number} \
-                        cells. This should not happen here... {t.stop()}')
-
+    # Save results as csv
     df = pd.DataFrame(L)
     logger.info(df['f1'].describe())
 

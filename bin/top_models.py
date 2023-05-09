@@ -211,10 +211,7 @@ def main():
             Y = one_hot_from_labels(y)
 
         # One per clone
-        L_performance = []
         d_results = {}
-        
-        # Here we go
         for i in range(Y.shape[1]):  
             
             t = Timer()
@@ -244,29 +241,15 @@ def main():
                 'n_clones_analyzed' : n_clones_analyzed,
                 'n_features' : X.shape[1],
                 'model' : model,
+                'tuning' : GS_mode,
                 'score_for_tuning' : score,
                 'comparison' : comparison
             }         
-            L_performance.append(results['performance_dict'])
             
             # Results
             d_results[comparison] = results
             logger.info(f'Finished {comparison} ({i+1}/{Y.shape[1]}): {t.stop()}')
-            
-        ##
-            
-        # Save all results
-        df = pd.DataFrame(L_performance)
-        print(df['f1'].describe())
-            
-        # Save df_performance
-        df.to_csv(
-            os.path.join(
-                path_results, 
-                f'out_top_{job}_{sample}.csv'
-            )
-        )
-        
+
         # Save pickled
         with open(os.path.join(path_results, f'results_top_{job}_{sample}.pkl'), 'wb') as f:
             pickle.dump(d_results, f)

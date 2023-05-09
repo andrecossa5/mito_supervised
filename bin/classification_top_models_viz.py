@@ -64,9 +64,9 @@ args = my_parser.parse_args()
 ##
 
 # Args
-# path_main = '/Users/IEO5505/Desktop/example_mito/'
-# sample = 'AML_clones'
-# n = 3
+path_main = '/Users/IEO5505/Desktop/example_mito/'
+sample = 'AML_clones'
+n = 3
 
 path_main = args.path_main
 sample =  args.sample
@@ -114,6 +114,8 @@ def main():
     # Iterate over models...
     for top in d_results:
         
+        top = 'top_1'
+        
         os.chdir(os.path.join(path_results, sample))
         make_folder(os.path.join(path_results, sample), top, overwrite=False)
         os.chdir(os.path.join(path_results, sample, top))
@@ -121,7 +123,7 @@ def main():
         # Get model results
         d_model = d_results[top]
         filtering, dimred, min_cell_number, min_cov_treshold = (
-        df_performance
+            df_performance
             .query('sample == @sample and top == @top')
             .loc[:, ['filtering', 'dimred', 'min_cell_number', 'min_cov_treshold']]
             .values.tolist()[0]
@@ -162,13 +164,22 @@ def main():
             for c in a.obs['GBC'].unique() 
         ]).index
 
+        # Cell vars hetamap
         colors = create_palette(a.obs, 'GBC', 'Set1')
         g = cells_vars_heatmap(
-            a[:,vois], cell_anno=[ colors[k] for k in a.obs['GBC'] ],
-            anno_colors=colors, heat_label='Heteroplasmy', 
-            legend_label='Clones', figsize=(11, 8), title=f'{sample}, {top} model', cbar_position=(0.82, 0.2, 0.02, 0.25),
-            title_hjust=0.47, legend_bbox_to_anchor=(0.825, 0.5), legend_loc='lower center', 
-            legend_ncol=1, xticks_size=10
+            a[:,vois], 
+            cell_anno='GBC',
+            anno_colors=colors, 
+            heat_label='Heteroplasmy', 
+            legend_label='Clones', 
+            figsize=(11, 8), 
+            title=f'{sample}, {top} model', 
+            cbar_position=(0.82, 0.2, 0.02, 0.25),
+            title_hjust=0.47, 
+            legend_bbox_to_anchor=(0.825, 0.5), 
+            legend_loc='lower center', 
+            legend_ncol=1, xticks_size=10,
+            order='diagonal'
         )
         g.fig.savefig(f'{top}_cell_x_vars_heatmap.png')
         
@@ -177,7 +188,7 @@ def main():
 
 
         # Iterate over clones
-        for comparison in d_model.keys():
+        for comparison in d_model:
 
             # Precision-recall and SHAP 
             d_ = d_model[comparison] # One sample, one model, one clone
