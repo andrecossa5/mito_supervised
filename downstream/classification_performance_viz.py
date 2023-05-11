@@ -43,8 +43,7 @@ clones.describe().to_excel(
 
 # Agg by sample and run summary
 (
-    clones
-    .assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
+    clones.assign(job=lambda x: x['filtering'] + '_' + x['dimred'] + '_' + x['model'] + '_' + x['tuning'])
     .groupby(['sample', 'job'])
     .agg('mean')
     .reset_index(level=1)
