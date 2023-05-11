@@ -8,8 +8,9 @@ import argparse
 import os
 import re
 import pickle
-import matplotlib
 
+from sklearn.metrics import auc
+from sklearn.metrics import PrecisionRecallDisplay
 from mito_utils.utils import *
 from mito_utils.preprocessing import *
 from mito_utils.dimred import *
@@ -64,9 +65,9 @@ args = my_parser.parse_args()
 ##
 
 # Args
-path_main = '/Users/IEO5505/Desktop/example_mito/'
-sample = 'AML_clones'
-n = 3
+# path_main = '/Users/IEO5505/Desktop/mito_bench/'
+# sample = 'MDA_clones'
+# n = 3
 
 path_main = args.path_main
 sample =  args.sample
@@ -74,51 +75,51 @@ n = args.ntop
 
 # Paths
 path_data = os.path.join(path_main, 'data')
-path_results = os.path.join(path_main, 'results/supervised_clones/top_models')
-path_clones = os.path.join(path_main, 'results/supervised_clones/reports/report_f1.csv')
+path_results = os.path.join(path_main, 'results', 'supervised_clones', 'top_models')
+path_clones = os.path.join(path_main, 'results', 'supervised_clones', 'reports', 'report_f1.csv')
+path_viz = os.path.join(path_main, 'results', 'supervised_clones', 'viz_top_models')
+
+# Create new folder for sample
+make_folder(path_viz, sample, overwrite=True)
+os.chdir(os.path.join(path_viz, sample))  
+
+# Colors
+samples = samples = [ s for s in os.listdir(path_data) if bool(re.search('AML|MDA', s)) ]
+colors_samples = { s:c for s,c in zip(samples, sc.pl.palettes.vega_10[:len(samples)]) }
+
 
 ##
 
-# Create new folder for sample
-make_folder(path_results, sample, overwrite=True)
-os.chdir(os.path.join(path_results, sample))  
-
-##  
 
 ########################################################################
 
 def main():
 
-    # Read final outs 
-    
-    # Sample
-    L = []
-    for x in os.listdir(path_results):
-        if bool(re.search('out', x)) and bool(re.search(sample, x)):
-            L.append(
-                pd.read_csv(os.path.join(path_results, x), index_col=0)
-                .assign(top=f'top_{x.split("_")[3]}')
-            )
-    df_performance = pd.concat(L)
-
     # Get top_models final results
     d_results = {}
+    L = []
     for x in os.listdir(path_results):
         if bool(re.search('results', x)) and bool(re.search(sample, x)):
             key = f'top_{x.split("_")[3]}'
             with open(os.path.join(path_results, x), 'rb') as f:
                 d_results[key] = pickle.load(f)
-
+            L.append(
+                pd.concat([ 
+                    pd.Series(d_results[key][clone]['performance_dict']) \
+                    for clone in d_results[key] 
+                ], axis=1).T
+                .assign(top=key)
+            )
+    df_performance = pd.concat(L, axis=0)
+    
     ##    
     
     # Iterate over models...
     for top in d_results:
         
-        top = 'top_1'
-        
-        os.chdir(os.path.join(path_results, sample))
-        make_folder(os.path.join(path_results, sample), top, overwrite=False)
-        os.chdir(os.path.join(path_results, sample, top))
+        os.chdir(os.path.join(path_viz, sample))
+        make_folder(os.path.join(path_viz, sample), top, overwrite=False)
+        os.chdir(os.path.join(path_viz, sample, top))
         
         # Get model results
         d_model = d_results[top]
@@ -140,11 +141,11 @@ def main():
             min_cell_number=min_cell_number, 
             min_cov_treshold=min_cov_treshold, 
             nproc=8, 
-            path_=os.getcwd()
+            path_=os.path.join(path_viz, sample, top)
         )
         a = nans_as_zeros(a) # For sklearn APIs compatibility
-        X, _ = reduce_dimensions(a, method='UMAP', n_comps=3, sqrt=True)
-        embs = pd.DataFrame(X, index=a.obs_names, columns=['UMAP1', 'UMAP2', 'UMAP3'])
+        X, _ = reduce_dimensions(a, method='UMAP', n_comps=2, sqrt=True)
+        embs = pd.DataFrame(X, index=a.obs_names, columns=['UMAP1', 'UMAP2'])
 
         # Sample circle plot
         a.obs['GBC'] = a.obs['GBC'].astype('str')
@@ -155,7 +156,7 @@ def main():
             .assign(prevalence=lambda x: x['n_cells']/x['n_cells'].sum())
         )
         fig, ax = plt.subplots(figsize=(6,6))
-        packed_circle_plot(df_, covariate='prevalence', ax=ax, color='b', annotate=True, fontsize=8)
+        packed_circle_plot(df_, covariate='prevalence', ax=ax, color=colors_samples[sample], annotate=True, fontsize=8)
         fig.savefig('Cicle_packed_plot.png')
 
         # Sample heatmap
@@ -179,7 +180,7 @@ def main():
             legend_bbox_to_anchor=(0.825, 0.5), 
             legend_loc='lower center', 
             legend_ncol=1, xticks_size=10,
-            order='diagonal'
+            order='diagonal_clones'
         )
         g.fig.savefig(f'{top}_cell_x_vars_heatmap.png')
         
@@ -190,33 +191,47 @@ def main():
         # Iterate over clones
         for comparison in d_model:
 
-            # Precision-recall and SHAP 
+            # Draw and calculate precision-recall curve (and its area) 
             d_ = d_model[comparison] # One sample, one model, one clone
-            precisions = d_['precisions']
-            recalls = d_['recalls']
-            tresholds = d_['tresholds']
+            model = d_['best_estimator']
+            X_test = d_['SHAP'].data
+            y_test = d_['y_test']
             alpha = d_['alpha']
-            idx_chosen = np.where(tresholds == alpha)[0][0]
-            precision, recall, f1, ncells_clone, ncells_sample  = (
+            
+            # Calculate precision recall curve
+            pr_curve = PrecisionRecallDisplay.from_estimator(model, X_test, y_test)
+            precisions = pr_curve.precision
+            recalls =  pr_curve.recall
+
+            # Get final precision and recall obtained after picking a decision treshold value 
+            # (tuned on the train data) 
+            precision, recall, f1, ncells_clone, ncells_sample, model, filtering, dimred  = (
                 df_performance
                 .query('sample == @sample and top == @top and comparison == @comparison')
-                .loc[:, ['precision', 'recall', 'f1', 'ncells_clone', 'ncells_sample']]
+                .loc[:, 
+                        ['precision', 'recall', 'f1', 'ncells_clone',
+                        'ncells_sample', 'model', 'filtering', 'dimred']
+                    ]
                 .values.tolist()[0]
             )
 
             ##
 
+            # Viz
             fig, axs = plt.subplots(1,2, figsize=(10.5,5))
 
             # Pr-recall
-            axs[0].plot(recalls, precisions, 'b-', linewidth=2)
-            axs[0].plot(recalls[idx_chosen], precisions[idx_chosen], 'ro', markersize=7)
+            axs[0].plot(recalls, precisions, 'k--', linewidth=1.5)
+            axs[0].plot(recall, precision, 'rx', markersize=7)
             format_ax(axs[0], title='Precision-recall curve', xlabel='recall', ylabel='precision')
-            axs[0].text(0.1, 0.3, f'n cells sample: {int(ncells_sample)}', transform=axs[0].transAxes)
-            axs[0].text(0.1, 0.25, f'clone prevalence: {ncells_clone / ncells_sample:.2f}', transform=axs[0].transAxes)
-            axs[0].text(0.1, 0.2, f'precision: {precision:.2f}', transform=axs[0].transAxes)
-            axs[0].text(0.1, 0.15, f'recall: {recall:.2f}', transform=axs[0].transAxes)
-            axs[0].text(0.1, 0.1, f'f1: {f1:.2f}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.45, f'Model: {model}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.4, f'Feature_type: {filtering}_{dimred}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.35, f'n cells sample: {int(ncells_sample)}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.3, f'clone prevalence: {ncells_clone / ncells_sample:.2f}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.25, f'precision: {precision:.2f}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.2, f'recall: {recall:.2f}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.15, f'f1: {f1:.2f}', transform=axs[0].transAxes)
+            axs[0].text(0.1, 0.1, f'AUC P/Recall: {auc(recalls, precisions):.2f}', transform=axs[0].transAxes)
             axs[0].spines[['right', 'top']].set_visible(False)
             axs[0].set_xlim((-0.1,1.1))
             axs[0].set_ylim((-0.1,1.1))
@@ -267,7 +282,7 @@ def main():
                     cont=x,
                     ax=ax,
                     s=7,
-                    title=f'% clone: {df_vars.loc[x, "perc_clone"]:.2f}, % rest: {df_vars.loc[x, "perc_rest"]:.2f}',
+                    title=f'Top {i+1} SHAP ({df_vars.loc[x, "perc_clone"]:.2f} vs {df_vars.loc[x, "perc_rest"]:.2f})',
                     cbar_kwargs={'pos':'outside'}
                 )
                 ax.axis('off')
@@ -280,7 +295,7 @@ def main():
                     cont=x,
                     s=7,
                     ax=ax,
-                    title=f'% clone: {df_vars.loc[x, "perc_clone"]:.2f}, % rest: {df_vars.loc[x, "perc_rest"]:.2f}',
+                    title=f'Top {i+1} % ratio ({df_vars.loc[x, "perc_clone"]:.2f} vs {df_vars.loc[x, "perc_rest"]:.2f})',
                     cbar_kwargs={'pos':'outside'}
                 )
                 ax.axis('off')
