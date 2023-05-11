@@ -118,7 +118,7 @@ def main():
     for top in d_results:
         
         os.chdir(os.path.join(path_viz, sample))
-        make_folder(os.path.join(path_viz, sample), top, overwrite=False)
+        make_folder(os.path.join(path_viz, sample), top, overwrite=True)
         os.chdir(os.path.join(path_viz, sample, top))
         
         # Get model results
@@ -140,7 +140,7 @@ def main():
             filtering=filtering, 
             min_cell_number=min_cell_number, 
             min_cov_treshold=min_cov_treshold, 
-            nproc=8, 
+            nproc=4, 
             path_=os.path.join(path_viz, sample, top)
         )
         a = nans_as_zeros(a) # For sklearn APIs compatibility
@@ -237,11 +237,14 @@ def main():
             axs[0].set_ylim((-0.1,1.1))
 
             # SHAP
-            mean_shap = d_['SHAP'].values.mean(axis=0)
-            idx = np.argsort(mean_shap)[::-1]
+            assert (a.var_names == d_['SHAP'].feature_names).all()
+            
             df_shap = (
-                pd.Series(mean_shap[idx], index=np.array(d_['SHAP'].feature_names)[idx])
+                pd.DataFrame(d_['SHAP'].values, columns=d_['SHAP'].feature_names)
+                .mean(axis=0)
+                .sort_values(ascending=False)
                 .to_frame('mean_shap')
+                .assign(shap_rank=lambda x: np.arange(1, x.shape[0]+1))
             )
             stem_plot(pd.concat([df_shap.head(10), df_shap.tail(10)]), 'mean_shap', ax=axs[1])
             format_ax(axs[1], xlabel='mean SHAP', ylabel='variant', title=comparison)
@@ -254,9 +257,11 @@ def main():
 
             # Rank variants
             clone = comparison.split('_')[0]
-            df_vars = rank_clone_variants(a, clone, min_clone_perc=0.1, max_perc_rest=0.1)
-            df_vars['shap_rank'] = np.argsort(df_shap['mean_shap'].sort_values())
-
+            df_vars = (
+                rank_clone_variants(a, clone, min_clone_perc=0, max_perc_rest=1) # No filtering, only ranking
+                .join(df_shap)
+            )
+            
             # Visualize top3 SHAP and top3 diff heteroplasmy
             df_ = embs.join([a.obs, pd.DataFrame(a.X, index=a.obs_names, columns=a.var_names)])
             query = f'GBC == "{clone}"'
@@ -282,22 +287,26 @@ def main():
                     cont=x,
                     ax=ax,
                     s=7,
-                    title=f'Top {i+1} SHAP ({df_vars.loc[x, "perc_clone"]:.2f} vs {df_vars.loc[x, "perc_rest"]:.2f})',
+                    title=f'Mean SHAP ranking: {i+1}',
                     cbar_kwargs={'pos':'outside'}
                 )
+                ax.text(.95, .95, f'% +clone: {df_vars.loc[x, "perc_clone"]:.2f}', transform=ax.transAxes, fontsize='xx-small')
+                ax.text(.95, .9, f'% +rest: {df_vars.loc[x, "perc_rest"]:.2f}', transform=ax.transAxes, fontsize='xx-small')
                 ax.axis('off')
 
             ## Perc_clone / perc_ratio
-            for i, x in enumerate(df_vars.sort_values('perc_ratio', ascending=False).head(3).index):
+            for i, x in enumerate(df_vars.query('perc_clone>=0.5 and perc_rest<=0.25').sort_values('log2FC').head(3).index):
                 ax = fig.add_subplot(gs[1, i+1])
                 draw_embeddings(
                     df_, 
                     cont=x,
                     s=7,
                     ax=ax,
-                    title=f'Top {i+1} % ratio ({df_vars.loc[x, "perc_clone"]:.2f} vs {df_vars.loc[x, "perc_rest"]:.2f})',
+                    title=f'log2FC AF ranking: {i+1}',  #(% +clone > 0.5, % +rest <0.1)',
                     cbar_kwargs={'pos':'outside'}
                 )
+                ax.text(.95, .95, f'% + clone: {df_vars.loc[x, "perc_clone"]:.2f}', transform=ax.transAxes, fontsize='xx-small')
+                ax.text(.95, .9, f'% + rest: {df_vars.loc[x, "perc_rest"]:.2f}', transform=ax.transAxes, fontsize='xx-small')
                 ax.axis('off')
 
             fig.tight_layout()
