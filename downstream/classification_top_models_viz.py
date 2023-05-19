@@ -66,7 +66,7 @@ args = my_parser.parse_args()
 
 # Args
 # path_main = '/Users/IEO5505/Desktop/mito_bench/'
-# sample = 'MDA_clones'
+# sample = 'MDA_PT'
 # n = 3
 
 path_main = args.path_main
@@ -117,6 +117,8 @@ def main():
     # Iterate over models...
     for top in d_results:
         
+        pass
+        
         os.chdir(os.path.join(path_viz, sample))
         make_folder(os.path.join(path_viz, sample), top, overwrite=True)
         os.chdir(os.path.join(path_viz, sample, top))
@@ -131,7 +133,7 @@ def main():
         )
 
         # Get AFM
-        afm = read_one_sample(path_data, sample=sample)
+        afm = read_one_sample(path_data, sample=sample, with_GBC=True)
 
         # Filter and reduce AFM for viz
         _, a = filter_cells_and_vars(
