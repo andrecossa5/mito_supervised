@@ -18,7 +18,7 @@ process JOB {
         val(min_cell_number)
 
     output:
-    path "out_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.csv", emit: output
+    path "out_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.pickle", emit: output
     path "log_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.txt", emit: logs
     
     script:
@@ -39,7 +39,7 @@ process JOB {
 
     stub:
     """
-    touch "out_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.csv"
+    touch "out_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.pickle"
     touch "log_${sample}_${filtering}_${dimred}_${model}_${GS_mode}_${min_cell_number}.txt"
     """
 

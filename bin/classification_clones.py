@@ -155,6 +155,7 @@ path_blacklist = args.blacklist
 if not args.skip:
 
     # Code
+    import pickle
     from mito_utils.utils import *
     from mito_utils.preprocessing import *
     from mito_utils.dimred import *
@@ -193,10 +194,9 @@ def main():
         """
     )
     
-    afm = read_one_sample(path_data, sample=sample)
+    afm = read_one_sample(path_data, sample=sample, with_GBC=True)
     ncells0 = afm.shape[0]
     n_all_clones = len(afm.obs['GBC'].unique())
-    # blacklist = pd.read_csv(path_blacklist, index_col=0)
 
     ##
 
@@ -205,7 +205,6 @@ def main():
 
         _, a = filter_cells_and_vars(
             afm,
-            # blacklist=blacklist,
             sample=sample,
             filtering=filtering, 
             min_cell_number=min_cell_number, 
@@ -216,7 +215,9 @@ def main():
 
         # Extract X, y
         a = nans_as_zeros(a) # For sklearn APIs compatibility
-        ncells = a.shape[0]
+        cells = a.obs_names
+        variants = a.var_names
+        ncells = cells.size
         n_clones_analyzed = len(a.obs['GBC'].unique())
         X = a.X
         y = pd.Categorical(a.obs['GBC'])
@@ -233,9 +234,11 @@ def main():
             nproc=ncores
         )
 
-        # Extract X, y
+        # Extract X, y, cells and variants
         a = nans_as_zeros(a) # For sklearn APIs compatibility
-        ncells = a.shape[0]
+        cells = a.obs_names
+        variants = a.var_names
+        ncells = cells.size
         n_clones_analyzed = len(a.obs['GBC'].unique())
         X, _ = reduce_dimensions(a, method=dimred, n_comps=n_comps, sqrt=False)
         y = pd.Categorical(a.obs['GBC'])
@@ -249,6 +252,8 @@ def main():
 
     # Here we go
     L = []
+    trained_models = {}
+    
     for i in range(Y.shape[1]):  
             
         t = Timer()
@@ -263,11 +268,15 @@ def main():
         results = classification(
             X, y_, key=model, GS=True, GS_mode=GS_mode,
             score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1,
-            full_output=True, feature_names=a.var_names
+            full_output=True, feature_names=variants
         )
-            
-        # Performance dict
-        results['performance_dict'] |= {
+        
+        # Pack results up
+        performance_dict = results['performance_dict']
+        del results['performance_dict']
+        
+        # Performance
+        performance_dict |= {
             'sample' : sample,
             'filtering' : filtering, 
             'dimred' : dimred,
@@ -275,29 +284,37 @@ def main():
             'min_cov_treshold' : min_cov_treshold,
             'ncells_clone' : y_.sum(),
             'ncells_sample' : ncells,
+            'clone_prevalence' : y_.sum() / ncells,
             'n_clones_analyzed' : n_clones_analyzed,
-            'n_features' : X.shape[1],
+            'n_features' : variants.size, 
             'model' : model,
             'tuning' : GS_mode,
             'score_for_tuning' : score,
             'comparison' : comparison
-        }         
-            
-        # Results
-        L.append(results['performance_dict'])
+        }
+        # Model + useful stuff 
+        results |= {'cells':cells, 'variants':variants}
+        
+        # Store comparison performance_df and results pickle
+        L.append(performance_dict)
+        trained_models[comparison] = results
+        
         logger.info(f'Finished {comparison} ({i+1}/{Y.shape[1]}): {t.stop()}')
 
     # Save results as csv
     df = pd.DataFrame(L)
     logger.info(df['f1'].describe())
 
-    # Save results
-    df.to_csv(
-        os.path.join(
-            path, 
-            f'out_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.csv'
-        )
+    # Save all as a pickle
+    path_results = os.path.join(
+        path, 
+        f'out_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.pickle'
     )
+    with open(path_results, 'wb') as f:
+        pickle.dump(
+            {'performance_df':df, 'trained_models':trained_models},
+            f
+        )
 
     #-----------------------------------------------------------------#
 
@@ -312,8 +329,6 @@ if __name__ == "__main__":
         main()
 
 #######################################################################
-
-
 
 
 
