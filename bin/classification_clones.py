@@ -267,8 +267,7 @@ def main():
         # Classification
         results = classification(
             X, y_, key=model, GS=True, GS_mode=GS_mode,
-            score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1,
-            full_output=True, feature_names=variants
+            score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1, feature_names=variants
         )
         
         # Pack results up

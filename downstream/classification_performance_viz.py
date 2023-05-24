@@ -5,6 +5,8 @@ Visualization of clones and samples classification performances.
 # Code
 import sys
 import os
+import re
+import pickle
 from scipy.stats import pearsonr
 from mito_utils.preprocessing import *
 from mito_utils.diagnostic_plots import *
@@ -18,7 +20,7 @@ import matplotlib
 ##
 
 # Args
-# path_main = '/Users/IEO5505/Desktop/mito_bench/'
+path_main = '/Users/IEO5505/Desktop/mito_bench/'
 path_main = sys.argv[1]
 
 # Set paths
@@ -27,7 +29,22 @@ path_output = os.path.join(path_main, 'results', 'supervised_clones', 'output')
 path_report = os.path.join(path_main, 'results', 'supervised_clones', 'reports')
 path_viz = os.path.join(path_main, 'results', 'supervised_clones', 'viz_overall_performance')
 
-# Read report
+# Create report
+L = []
+pickles = [ x for x in os.listdir(path_output) if bool(re.search('.pickle', x)) ]
+for p in pickles:
+    with open(os.path.join(path_output, p), 'rb') as f:
+        d = pickle.load(f)
+    L.append(d['performance_df'])
+
+# Concat and save
+pd.concat(L).to_csv(os.path.join(path_report, 'report_f1.csv'))
+
+
+##
+
+
+# Load report
 clones = pd.read_csv(os.path.join(path_report, 'report_f1.csv'), index_col=0)
 
 
@@ -64,15 +81,15 @@ df_ = (
 )
 
 # Top
-box(df_.iloc[:,:5].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[0])
-strip(df_.query('f1>=0.7').iloc[:,:5].melt(), 'variable', 'value', c='r', s=3, ax=axs[0])
-strip(df_.query('f1<=0.7').iloc[:,:5].melt(), 'variable', 'value', c='#3b3838', s=2.5, ax=axs[0])
+box(df_.iloc[:,:6].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[0])
+strip(df_.query('AUCPR>=0.7').iloc[:,:6].melt(), 'variable', 'value', c='r', s=3, ax=axs[0])
+strip(df_.query('AUCPR<0.7').iloc[:,:6].melt(), 'variable', 'value', c='#3b3838', s=2.5, ax=axs[0])
 
-n_good = df_.query('f1>=0.7').shape[0]
-format_ax(axs[0], ylabel='value', xticks_size=10, rotx=90)
+n_good = df_.query('AUCPR>=0.7').shape[0]
+format_ax(axs[0], ylabel='value', xticks_size=10, rotx=90, title='Feature type')
 add_legend(
     label='Model',
-    colors={'f1 >= 0.7':'r', 'f1 < 0.7':'#3b3838'}, 
+    colors={'AUCPR >= 0.7':'r', 'AUCPR < 0.7':'#3b3838'}, 
     ax=axs[0],
     loc='upper left',
     bbox_to_anchor=(1,1),
@@ -89,9 +106,12 @@ df_['feature_type'] = df_.reset_index(level=1)['job'].map(lambda x: '_'.join(x.s
 feat_type_colors = create_palette(df_, 'feature_type', 'Spectral', saturation=.85)
 
 # Axes
-box(df_.iloc[:,:5].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[1])
+box(df_.iloc[:,:6].melt(), 'variable', 'value', c='#E9E7E7', order=None, ax=axs[1])
 strip(
-    df_.loc[:,['accuracy', 'balanced_accuracy', 'precision', 'recall', 'f1', 'feature_type']]
+    df_.loc[:,
+        [ 'accuracy', 'balanced_accuracy', 'precision',
+        'recall', 'f1', 'AUCPR', 'feature_type']
+    ]
     .melt(id_vars='feature_type'),
     'variable', 'value', by='feature_type', c=feat_type_colors, s=2.5, ax=axs[1]
 )
@@ -109,7 +129,7 @@ add_legend(
 axs[1].spines[['top', 'right']].set_visible(False)
 
 # Save
-fig.suptitle(f"{n_good}/{df_.shape[0]} ({n_good/df_.shape[0]*100:.2f}%) 'overall good' models (>=0.7 mean f1, over all sample clones)")
+fig.suptitle(f"{n_good}/{df_.shape[0]} ({n_good/df_.shape[0]*100:.2f}%) 'overall good' models (>=0.7 mean AUCPR, over all sample clones)")
 fig.savefig(os.path.join(path_viz, 'overall_performance_f1.png'))
 
 ##############
@@ -118,14 +138,14 @@ fig.savefig(os.path.join(path_viz, 'overall_performance_f1.png'))
 ##
 
 
-############## Technical summary
+############## Ranking and technical summary
 
 # Plot
-colors = {'precision' : '#F0D290', 'recall' : '#DE834D', 'f1' : '#A3423C'}
+metric_colors = {'precision':'#F0D290', 'recall':'#DE834D', 'f1':'#A3423C', 'AUCPR':'#5C4040'}
 
-fig = plt.figure(figsize=(13, 5))
-gs = GridSpec(1, 3, figure=fig, width_ratios=[3, 2, 7])
-
+fig = plt.figure(figsize=(8, 8))
+# gs = GridSpec(3, 2, figure=fig, width_ratios=[2.5,3], height_ratios=[0.5,1,2])
+# 
 df_ = (
     clones
     .assign(job=lambda x: x['filtering'] + '|' + x['dimred'] + '|' + x['model'] + '|' + x['tuning'])
@@ -133,77 +153,77 @@ df_ = (
     .agg('mean')
     .reset_index(level=1)
 )
+
 df_[['filtering', 'dimred', 'model', 'tuning']] = df_['job'].str.split('|', expand=True)
 df_ = df_.drop(columns=['job']).reset_index(drop=True)
 
-# Models
-ax1 = fig.add_subplot(gs[0,0])
-box(
-    (
-        df_.loc[:, ['f1', 'precision', 'recall', 'model']]
-        .melt(id_vars='model', var_name='metric', value_name='score')
-    ), 
-    'model', 
-    'score',
-    by='metric', 
-    c=colors, 
-    hue_order=colors.keys(),
-    ax=ax1
+# Feat type ranking plot
+df_1 = (
+    df_.loc[:, ['f1', 'precision', 'recall', 'AUCPR', 'filtering', 'dimred']]
+    .assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
+    .drop(columns=['dimred', 'filtering'])
 )
-format_ax(ax1, xticks_size=10, rotx=90, title='Model', ylabel='value')
-add_legend(
-    label='Metric',
-    colors=colors, 
-    ax=ax1,
-    loc='upper center',
-    bbox_to_anchor=(0.5, -0.3),
-    ncols=3,
-    artists_size=9,
-    label_size=10,
-    ticks_size=9
+feat_order = (
+    df_1.groupby('feature_type')
+    .mean()
+    .sort_values('AUCPR', ascending=False)
+    .index
 )
+df_1 = df_1.melt(id_vars='feature_type', var_name='metric')
 
-ax1.spines[['top', 'right']].set_visible(False)
-
-# Tuning
-ax2 = fig.add_subplot(gs[0, 1])
-box(
-    (
-        df_.loc[:, ['f1', 'precision', 'recall', 'tuning']]
-        .melt(id_vars='tuning', var_name='metric', value_name='score')
-    ), 
-    'tuning', 
-    'score',
-    by='metric', 
-    c=colors,
-    hue_order=colors.keys(),
-    ax=ax2
+# # Ax
+sns.barplot(
+    data=df_1, x='value', y='feature_type', hue='metric', 
+    order=feat_order,
+    orient='h', 
+    palette=metric_colors.values(), 
+    errcolor='k',
+    errwidth=.8,
+    capsize=.05,
+    saturation=1,
+    ax=ax,
+    edgecolor='k',
+    linewidth=.5
 )
-format_ax(ax2, xticks_size=10, rotx=90, title='Hyperparameters tuning', yticks=[])
-ax2.spines[['top', 'right', 'left']].set_visible(False)
+format_ax(xlabel='Metric value', ylabel='', ax=ax, title='Feature type')
+ax.legend([], [], frameon=False)
+ax.spines[['right', 'top', 'left']].set_visible(False)
 
-# Feature type
-ax3 = fig.add_subplot(gs[0, 2])
-box(
-    (
-        df_.loc[:, ['f1', 'precision', 'recall', 'filtering', 'dimred']]
-        .assign(feature_type=lambda x: x['filtering'] + '_' + x['dimred'])
-        .drop(columns=['dimred', 'filtering'])
-        .melt(id_vars='feature_type', var_name='metric', value_name='score')
-    ), 
-    'feature_type', 
-    'score',
-    by='metric', 
-    c=colors, 
-    hue_order=colors.keys(),
-    ax=ax3
-)
-format_ax(ax3, xticks_size=10, rotx=90, title='Feature matrix', yticks=[])
-ax3.spines[['top', 'right', 'left']].set_visible(False)
+##
+
+# Model
+# ax2 = fig.add_subplot(gs[:2, 1])
+# box(
+#     (
+#         df_.loc[:, ['f1', 'precision', 'recall', 'AUCPR', 'model']]
+#         .melt(id_vars='model', var_name='metric', value_name='score')
+#     ), 
+#     'model', 
+#     'score',
+#     by='metric', 
+#     c=metric_colors, 
+#     hue_order=metric_colors.keys(),
+#     ax=ax2
+# )
+# format_ax(ax2, xticks_size=10, rotx=0, title='Model', ylabel='Metric value')
+# add_legend(
+#     label='Metric',
+#     colors=metric_colors, 
+#     ax=ax2,
+#     loc='upper center',
+#     bbox_to_anchor=(0.5, -0.15),
+#     ncols=4,
+#     artists_size=9,
+#     label_size=10,
+#     ticks_size=9
+# )
+# ax2.spines[['top', 'right']].set_visible(False)
+
 
 # Save
 fig.tight_layout()
-fig.savefig(os.path.join(path_viz, 'overall_performance_f1.png'))
+fig.savefig(os.path.join(path_viz, 'feature_type_ranking.png'))
+plt.show()
 
 
 ##############
