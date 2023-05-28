@@ -1,0 +1,13 @@
+{
+    "path_data" : "/Users/IEO5505/Desktop/mito_bench/PT_only",
+    "outdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/output/",
+    "logdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/logs/",
+    "min_cov_treshold" : 50,
+    "n_combos" : 50,
+    "filtering" : ["pegasus"],
+    "GS_mode" : ["random"],
+    "dimred" : ["no_dimred", "PCA"],
+    "model" : ["xgboost", "kNN", "logit"],
+    "score" : "f1",
+    "min_cell_number" : [10]
+}
