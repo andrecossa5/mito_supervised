@@ -21,7 +21,6 @@ import matplotlib
 matplotlib.use('macOSX')
 
 
-
 ##
 
 
@@ -177,9 +176,6 @@ def main():
     # Save
     with open(os.path.join(path_sample, f'evaluation_metrics_kNN_{sample}_{filtering}.pickle'), 'wb') as f:
         pickle.dump(results, f)
-
-    # Viz
-    #...
 
 
     ############################## 
