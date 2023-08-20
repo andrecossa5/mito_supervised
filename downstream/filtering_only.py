@@ -51,7 +51,7 @@ def main():
         d[x] = filtered_vars.to_list()
 
     # Save
-    with open(os.path.join(path_tmp, f'{sample}_filtered_subsets.pickle'), 'rb') as f:
+    with open(os.path.join(path_tmp, f'{sample}_filtered_subsets.pickle'), 'wb') as f:
         d = pickle.load(f)
 
 ##
