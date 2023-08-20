@@ -52,7 +52,7 @@ def main():
 
     # Save
     with open(os.path.join(path_tmp, f'{sample}_filtered_subsets.pickle'), 'wb') as f:
-        d = pickle.load(f)
+        pickle.dump(d, f)
 
 ##
 
