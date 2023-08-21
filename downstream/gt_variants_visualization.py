@@ -26,6 +26,7 @@ path_main = '/Users/IEO5505/Desktop/mito_bench'
 
 ##
 
+
 # Set paths
 path_data = os.path.join(path_main, 'data') 
 path_output = os.path.join(path_main, 'results', 'supervised_clones', 'output')
@@ -39,6 +40,102 @@ path_tmp = os.path.join(
 
 ##
 
+
+
+################################# Filtering MT-SNVs vs GT
+
+samples = ['AML_clones', 'MDA_clones', 'MDA_lung'] # , 'MDA_PT']
+
+##
+
+def extract_vars(path_tmp, samples):
+
+    D = {}
+    for sample in samples:
+
+        d_vars = {}
+        for x in os.listdir(path_tmp):
+            if x == f'{sample}_GT_variants.pickle':
+                with open(os.path.join(path_tmp, x), 'rb') as f:
+                    d = pickle.load(f)
+                GT_vars = d['(0.75,0.25)']
+        d_vars['GT'] = GT_vars
+
+        for x in os.listdir(path_tmp):
+            if x == f'{sample}_filtered_subsets.pickle':
+                with open(os.path.join(path_tmp, x), 'rb') as f:
+                    d = pickle.load(f)
+
+        D[sample] = { **d_vars, **d }
+
+    return D
+
+
+##
+
+
+
+
+# Get all variants 
+d = extract_vars(path_tmp, samples)
+
+
+JI_l = []
+for k in d:
+    d_ = d[k]
+    filtered_subsets_keys = [ x for x in d_ if x != 'GT' ]
+    jis = { x : ji(d_['GT'], d_[x]) for x in filtered_subsets_keys }
+    jis = { **jis, **{ 'sample' : k } }
+    L.append(jis)
+
+
+TP = []
+for k in d:
+    d_ = d[k]
+    filtered_subsets_keys = [ x for x in d_ if x != 'GT' ]
+    jis = { x : ji(d_['GT'], d_[x]) for x in filtered_subsets_keys }
+    jis = { **jis, **{ 'sample' : k } }
+    L.append(jis)
+
+
+
+pd.DataFrame(JI_l)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+################################# Examples GT
 
 # Load data
 afm = read_one_sample(path_data, sample, with_GBC=True)

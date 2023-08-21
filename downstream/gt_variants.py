@@ -95,7 +95,7 @@ def main():
         )
         d['t'] = (t_min, t_max)
 
-        return d, vois
+        return d, vois, clones_recoverable
     
 
     ##
@@ -107,7 +107,12 @@ def main():
     vois_d = {}
 
     for x, y in t_list:
-        d, vois = process_one_sample(sample, t_min=x, t_max=y)
+        d, vois, good_clones = process_one_sample(sample, t_min=x, t_max=y)
+        if x == .75:
+            (
+                pd.DataFrame(good_clones, columns=['clone'])
+                .to_csv(os.path.join(path_data, sample, 'good_clones.csv'))
+            )
         L.append(d)
         vois_d[f'({x},{y})'] = vois
 
