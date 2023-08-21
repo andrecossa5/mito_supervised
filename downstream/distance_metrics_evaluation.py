@@ -17,27 +17,22 @@ from mito_utils.distances import *
 from mito_utils.kNN import *
 from mito_utils.metrics import *
 from mito_utils.plotting_base import *
-import matplotlib
-matplotlib.use('macOSX')
 
 
 ##
 
 
 # Args
-sample = sys.argv[1]
-filtering = sys.argv[2]
-ncov = int(sys.argv[3])
+path_main = sys.argv[1]
+sample = sys.argv[2]
+filtering = sys.argv[3]
 
-# sample = 'MDA_lung'
-# filtering = 'MQuad'
-# ncov = int('100')
+
+##
+
 
 # Set paths
-path_main = '/Users/IEO5505/Desktop/mito_bench/'
 path_data = os.path.join(path_main, 'data')
-path_output = os.path.join(path_main, 'results', 'supervised_clones', 'output')
-path_report = os.path.join(path_main, 'results', 'supervised_clones', 'reports')
 path_viz = os.path.join(path_main, 'results', 'supervised_clones', 'visualization', 'distances_evaluation')
 path_tmp = os.path.join(path_main, 'results', 'supervised_clones', 'downstream_files')
 
@@ -53,32 +48,16 @@ def main():
     afm = read_one_sample(path_data, sample, with_GBC=True)
 
     # Filter AFM
-
-    # Get a_cells and filtered afm from full afm
-    if sample != 'MDA_PT':
-
-        a_cells, a = filter_cells_and_vars(
-            afm, sample=sample, filtering=filtering, path_=path_sample,
-            min_cell_number=10, min_cov_treshold=50
-        )
-        a = nans_as_zeros(a)
-        labels = a.obs['GBC']
-
-    else:
-
-        # Check variants are still there first...
-        with open(os.path.join(path_tmp, 'MDA_PT_variants.pickle'), 'rb') as f:
-            variants = pickle.load(f)
-        a_cells, a = filter_cells_and_vars(
-            afm, sample=sample, variants=variants[filtering],
-            min_cell_number=10, min_cov_treshold=50, nproc=4
-        )
-        a = nans_as_zeros(a)
-        labels = a.obs['GBC']
-
+    file = f'{sample}_filtered_subsets.pickle'
+    with open(os.path.join(path_tmp, 'variant_subsets_and_GT', file), 'rb') as f:
+        d_variants = pickle.load(f)
+    _, a = filter_cells_and_vars(
+        afm, sample=sample, variants=d_variants[filtering],
+    )
+    a = nans_as_zeros(a)
+    labels = a.obs['GBC']
 
     ##
-
 
     ############################## 
     # 1. What is the best performing metric 
@@ -91,7 +70,7 @@ def main():
         'euclidean', 'sqeuclidean', 'cosine', 
         'correlation', 'jaccard', 'matching', 'ludwig2019'
     ]
-    n_samples = 10
+    n_samples = 5
     n_cells_sampling = round((a.shape[0] / 100) * 80)
 
     results = {}
@@ -103,7 +82,7 @@ def main():
             a_ = a[cells_,:]
             a_.uns['per_position_coverage'] = a_.uns['per_position_coverage'].loc[cells_,:]
             labels_ = a_.obs['GBC']
-            l.append(evaluate_metric_with_gt(a_, metric, labels_, ncov=ncov))
+            l.append(evaluate_metric_with_gt(a_, metric, labels_))
 
         results[metric] = l
 
@@ -111,12 +90,8 @@ def main():
     with open(os.path.join(path_sample, f'evaluation_metrics_aucpr_{sample}_{filtering}.pickle'), 'wb') as f:
         pickle.dump(results, f)
 
-    # Load
-    with open(os.path.join(path_sample, f'evaluation_metrics_aucpr_{sample}_{filtering}.pickle'), 'rb') as f:
-        results = pickle.load(f)
-    df_ = pd.DataFrame(results).melt(var_name='metric', value_name='AUCPR')
-
     # Metric order
+    df_ = pd.DataFrame(results).melt(var_name='metric', value_name='AUCPR')
     order = (
         df_.groupby('metric')
         .agg('median')['AUCPR']
@@ -126,16 +101,19 @@ def main():
 
     # Viz
     fig, ax = plt.subplots(figsize=(7,5))
-    box(df_, x='metric', y='AUCPR', c='lightgrey', ax=ax, order=order)
-    strip(df_, x='metric', y='AUCPR', c='black', ax=ax, order=order)
-    format_ax(ax, title=f'AUCPR all positive cell pairs (n samples={n_samples})', ylabel='AUCPR')
+    box(df_, x='metric', y='AUCPR', c='white', ax=ax, order=order)
+    strip(df_, x='metric', y='AUCPR', c='black', s=5, ax=ax, order=order)
+    format_ax(
+        ax,
+        title=f'AUCPR all positive cell pairs (n samples={n_samples})', 
+        ylabel='AUCPR',
+        reduced_spines=True
+    )
     fig.tight_layout()
-    ax.spines[['right', 'top']].set_visible(False)
     fig.savefig(
         os.path.join(path_viz, f'evaluation_metrics_aucpr_{sample}_{filtering}.png'),
         dpi=500
     )
-
 
     ##
 
@@ -159,7 +137,7 @@ def main():
         if metric != 'ludwig2019':
             idx = kNN_graph(a.X, k=k, nn_kwargs={'metric':metric})[0]
         else:
-            X = pair_d(a, metric='ludwig2019', ncov=ncov)
+            X = pair_d(a, metric='ludwig2019')
             idx = kNN_graph(X, k=k, from_distances=True)[0]
 
         mean_ksqared, mean_p, acc_rate = kbet(idx, labels, alpha=0.05, only_score=False)
@@ -196,7 +174,7 @@ def main():
         if metric != 'ludwig2019':
             results[metric] = kNN_graph(a.X, k=k, nn_kwargs={'metric':metric})[0]
         else:
-            X = pair_d(a, metric='ludwig2019', ncov=ncov)
+            X = pair_d(a, metric='ludwig2019')
             results[metric] = kNN_graph(X, k=k, from_distances=True)[0]
 
     # Evaluate median k-neighborhood overlaps
@@ -222,9 +200,9 @@ def main():
         dpi=500
     )
 
-
     ##
 
+#####################################################
 
 # Run
 if __name__ == "__main__":

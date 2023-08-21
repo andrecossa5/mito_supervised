@@ -21,7 +21,6 @@ matplotlib.use('macOSX')
 
 
 # Args
-sample = 'AML_clones'
 path_main = '/Users/IEO5505/Desktop/mito_bench'
 
 
