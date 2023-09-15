@@ -74,70 +74,77 @@ def extract_vars(path_tmp, samples):
 ##
 
 
+def gather_metrics(d):
+
+    L = []
+
+    for k in d:
+
+        d_ = d[k]
+        filtered_subsets_keys = [ x for x in d_ if x != 'GT' ]
+
+        jis = { x : ji(d_['GT'], d_[x]) for x in filtered_subsets_keys }
+        jis = { **jis, **{ 'sample' : k, 'metric' : 'JI' } }
+        L.append(jis)
+
+        tps = { x : len(set(d_['GT']) & set(d_[x])) / len(d_['GT'])  for x in filtered_subsets_keys }
+        tps = { **tps, **{ 'sample' : k, 'metric' : 'TPR' } }
+        L.append(tps)
+
+        fps = { x : len(set(d_[x]) - set(d_['GT'])) / len(d_[x])  for x in filtered_subsets_keys }
+        fps = { **fps, **{ 'sample' : k, 'metric' : 'FPR' } }
+        L.append(fps)
+
+        fns = { x : len(set(d_['GT']) - set(d_[x])) / len(d_['GT']) for x in filtered_subsets_keys }
+        fns = { **fns, **{ 'sample' : k, 'metric' : 'FNR' } }
+        L.append(fns)
 
 
-# Get all variants 
+    df = (
+        pd.DataFrame(L)
+        .melt(value_name='value', var_name='method', id_vars=['sample', 'metric'])
+    )
+
+    return df
+
+
+##
+
+
+# Get metrics
 d = extract_vars(path_tmp, samples)
+df = gather_metrics(d)
+
+# Viz
+fig = plt.figure(figsize=(8,5), constrained_layout=True)
+
+for i, x in enumerate(df['metric'].unique()):
+
+    df_ = df.query('metric == @x')
+    order = ( 
+        df_.groupby('method').mean()
+        .sort_values(by='value', ascending=False).index
+    )
+
+    ax = plt.subplot(2,2,i+1)
+    box(df_, 'method', 'value', c='white', ax=ax, order=order)
+    strip(df_, 'method', 'value', c='k', ax=ax, order=order)
+    format_ax(ax, reduced_spines=True, ylabel=x)
+
+fig.suptitle('MT-SNVs filtering method sensitivity')
+fig.savefig(
+    os.path.join(path_viz, f'filtering_methods_and_GT.png'), 
+    dpi=300
+)
 
 
-JI_l = []
-for k in d:
-    d_ = d[k]
-    filtered_subsets_keys = [ x for x in d_ if x != 'GT' ]
-    jis = { x : ji(d_['GT'], d_[x]) for x in filtered_subsets_keys }
-    jis = { **jis, **{ 'sample' : k } }
-    L.append(jis)
-
-
-TP = []
-for k in d:
-    d_ = d[k]
-    filtered_subsets_keys = [ x for x in d_ if x != 'GT' ]
-    jis = { x : ji(d_['GT'], d_[x]) for x in filtered_subsets_keys }
-    jis = { **jis, **{ 'sample' : k } }
-    L.append(jis)
-
-
-
-pd.DataFrame(JI_l)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+##
 
 ################################# Examples GT
 
 # Load data
+sample = 'MDA_clones'
+
 afm = read_one_sample(path_data, sample, with_GBC=True)
 with open(os.path.join(path_tmp, f'{sample}_GT_variants.pickle'), 'rb') as f:
     d = pickle.load(f)
