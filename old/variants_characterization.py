@@ -17,7 +17,7 @@ from matplotlib.gridspec import GridSpec
 
 
 # Args
-# sample = 'MDA_lung'
+# sample = 'MDA_clones'
 # path_main = '/Users/IEO5505/Desktop/mito_bench/'
 
 path_main = sys.argv[1]
@@ -117,7 +117,7 @@ ax.spines[['top', 'right', 'left']].set_visible(False)
 
 # Plot
 fig.tight_layout()
-fig.savefig(os.path.join(path_viz, 'variants_characterization_I.png'))
+fig.savefig(os.path.join(path_viz, 'variants_characterization_I.png'), dpi=300)
 
 
 ##
@@ -169,7 +169,7 @@ ax.spines[['top', 'right', 'left']].set_visible(False)
 
 # Plot
 fig.tight_layout()
-fig.savefig(os.path.join(path_viz, 'variants_characterization_II.png'))
+fig.savefig(os.path.join(path_viz, 'variants_characterization_II.png'),  dpi=300)
 
 ##############
 
@@ -240,7 +240,7 @@ for x in annot_list[1:]:
 
 # Save
 fig.tight_layout()
-fig.savefig(os.path.join(path_viz, 'variants_selection_evidence.png'))
+fig.savefig(os.path.join(path_viz, 'variants_selection_evidence.png'), dpi=300)
 
 ##############
 
