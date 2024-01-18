@@ -5,8 +5,6 @@ Investigation of MT-SNVs metrics spaces.
 3. What is the relationship among all differnt metrics, considering the resulting kNN graphs?
 """
 
-
-# Code
 import os
 import sys
 import pickle
@@ -22,19 +20,18 @@ from mito_utils.plotting_base import *
 ##
 
 
-# Args
-path_main = sys.argv[1]
-sample = sys.argv[2]
-filtering = sys.argv[3]
-
-
-##
-
-
 # Set paths
+path_main = '/Users/IEO5505/Desktop/mito_bench'
 path_data = os.path.join(path_main, 'data')
-path_viz = os.path.join(path_main, 'results', 'supervised_clones', 'visualization', 'distances_evaluation')
-path_tmp = os.path.join(path_main, 'results', 'supervised_clones', 'downstream_files')
+path_supervised = os.path.join(path_main, 'results/supervised_clones')
+path_distances = os.path.join(path_supervised, 'distances')
+
+# Params
+# sample = 'MDA_clones'
+# filtering = 'MQuad'
+
+sample = sys.argv[1]
+filtering = sys.argv[2]
 
 
 ##
@@ -43,16 +40,15 @@ path_tmp = os.path.join(path_main, 'results', 'supervised_clones', 'downstream_f
 def main():
 
     # Data
-    make_folder(path_tmp, sample, overwrite=False)
-    path_sample = os.path.join(path_tmp, sample)
+    make_folder(path_distances, sample, overwrite=False)
+    path_sample = os.path.join(path_distances, sample)
     afm = read_one_sample(path_data, sample, with_GBC=True)
 
     # Filter AFM
-    file = f'{sample}_filtered_subsets.pickle'
-    with open(os.path.join(path_tmp, 'variant_subsets_and_GT', file), 'rb') as f:
-        d_variants = pickle.load(f)
+    with open(os.path.join(path_supervised, 'variants.pickle'), 'rb') as f:
+        VARIANTS = pickle.load(f)
     _, a = filter_cells_and_vars(
-        afm, sample=sample, variants=d_variants[filtering],
+        afm, sample=sample, variants=VARIANTS[(sample, filtering)],
     )
     a = nans_as_zeros(a)
     labels = a.obs['GBC']
@@ -82,38 +78,14 @@ def main():
             a_ = a[cells_,:]
             a_.uns['per_position_coverage'] = a_.uns['per_position_coverage'].loc[cells_,:]
             labels_ = a_.obs['GBC']
-            l.append(evaluate_metric_~zwith_gt(a_, metric, labels_))
+            l.append(evaluate_metric_with_gt(a_, metric, labels_))
 
         results[metric] = l
 
     # Save
-    with open(os.path.join(path_sample, f'evaluation_metrics_aucpr_{sample}_{filtering}.pickle'), 'wb') as f:
+    results_path = os.path.join(path_sample, f'evaluation_metrics_aucpr_{sample}_{filtering}.pickle')
+    with open(results_path, 'wb') as f:
         pickle.dump(results, f)
-
-    # Metric order
-    df_ = pd.DataFrame(results).melt(var_name='metric', value_name='AUCPR')
-    order = (
-        df_.groupby('metric')
-        .agg('median')['AUCPR']
-        .sort_values(ascending=False)
-        .index
-    )
-
-    # Viz
-    fig, ax = plt.subplots(figsize=(7,5))
-    box(df_, x='metric', y='AUCPR', c='white', ax=ax, order=order)
-    strip(df_, x='metric', y='AUCPR', c='black', s=5, ax=ax, order=order)
-    format_ax(
-        ax,
-        title=f'AUCPR all positive cell pairs (n samples={n_samples})', 
-        ylabel='AUCPR',
-        reduced_spines=True
-    )
-    fig.tight_layout()
-    fig.savefig(
-        os.path.join(path_viz, f'evaluation_metrics_aucpr_{sample}_{filtering}.png'),
-        dpi=500
-    )
 
     ##
 
@@ -140,7 +112,7 @@ def main():
             X = pair_d(a, metric='ludwig2019')
             idx = kNN_graph(X, k=k, from_distances=True)[0]
 
-        mean_ksqared, mean_p, acc_rate = kbet(idx, labels, alpha=0.05, only_score=False)
+        _, _, acc_rate = kbet(idx, labels, alpha=0.05, only_score=False)
         median_entropy = NN_entropy(idx, labels)
         median_purity = NN_purity(idx, labels)
         results[metric] = {
@@ -152,9 +124,9 @@ def main():
     ##
 
     # Save
-    with open(os.path.join(path_sample, f'evaluation_metrics_kNN_{sample}_{filtering}.pickle'), 'wb') as f:
+    results_path = os.path.join(path_sample, f'evaluation_metrics_kNN_{sample}_{filtering}.pickle')
+    with open(results_path, 'wb') as f:
         pickle.dump(results, f)
-
 
     ############################## 
     # 3. What is the relationship among all different metrics, 
@@ -195,9 +167,9 @@ def main():
     fig.tight_layout()
     fig.savefig(
         os.path.join(
-            path_viz, f'kNN_overlaps_{sample}_{filtering}.png'
+            path_sample, f'kNN_overlaps_{sample}_{filtering}.png'
         ),
-        dpi=500
+        dpi=300
     )
 
     ##

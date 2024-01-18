@@ -203,15 +203,18 @@ def main():
     # Filter 'good quality' cells and variants
     if dimred == 'no_dimred':
 
-        _, a = filter_cells_and_vars(
-            afm,
-            sample=sample,
-            filtering=filtering, 
-            min_cell_number=min_cell_number, 
-            min_cov_treshold=min_cov_treshold, 
-            nproc=ncores, 
-            path_=path
-        )
+        if filtering != 'GT':
+            _, a = filter_cells_and_vars(
+                afm,
+                sample=sample,
+                filtering=filtering, 
+                min_cell_number=min_cell_number, 
+                min_cov_treshold=min_cov_treshold, 
+                nproc=ncores, 
+                path_=path
+            )
+        else:
+            _, a = filter_afm_with_gt(afm, min_cells_clone=min_cell_number)
 
         # Extract X, y
         a = nans_as_zeros(a) # For sklearn APIs compatibility

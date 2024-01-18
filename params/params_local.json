@@ -3,12 +3,11 @@
     "outdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/output/",
     "logdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/logs/",
     "min_cov_treshold" : 50,
-    "n_combos" : 5,
-    "samples" : ["AML_clones"],
-    "filtering" : ["miller2022"],
+    "n_combos" : 100,
+    "filtering" : ["MQuad", "pegasus", "miller2022", "ludwig2019", "GT"],
     "GS_mode" : ["random"],
     "dimred" : ["no_dimred"],
-    "model" : ["xgboost"],
+    "model" : ["logit"],
     "score" : "f1",
-    "min_cell_number" : [5]
+    "min_cell_number" : [10]
 }

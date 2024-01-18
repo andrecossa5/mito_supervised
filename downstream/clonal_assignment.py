@@ -37,11 +37,11 @@ meta = pd.read_csv(os.path.join(path_data, 'cells_meta_orig.csv'), index_col=0)
 # Single sample exploratory 
 
 # Check single-samples
-sample = 'MDA_PT'
+sample = 'MDA_clones'
 
 # Params
 correction_type = 'reference'
-coverage_treshold = 25
+coverage_treshold = 110
 umi_treshold = 5
 p_treshold = 1
 max_ratio_treshold = .5
@@ -71,7 +71,7 @@ counts = counts.loc[
 # Filter UMIs
 counts = mark_UMIs(counts, coverage_treshold=coverage_treshold, nbins=50)
 fig, ax = plt.subplots(figsize=(5,5))
-viz_UMIs(counts, by='status', ax=ax, nbins=50)
+viz_UMIs(counts, by='status', ax=ax, nbins=50, c=None)
 ax.set(title=sample)
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, f'{sample}_filtered_UMIs.png'), dpi=300)
@@ -169,3 +169,6 @@ fig.savefig(os.path.join(path_results, f'{sample}_selected_CBC_GBC.png'), dpi=30
 # Save
 cells_df.to_csv(os.path.join(path_data, sample, 'cells_summary_table.csv'))
 clones_df.to_csv(os.path.join(path_data, sample, 'clones_summary_table.csv'))
+
+
+##
