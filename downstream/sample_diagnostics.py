@@ -93,6 +93,12 @@ for i, x in enumerate(samples):
 fig.suptitle('Ranked variant AFs')
 fig.savefig(os.path.join(path_results, 'VG_like_AFs.png'), dpi=300)
 
+# Fig paper
+fig, ax = plt.subplots(figsize=(4.5,4.5))
+vars_AF_dist(AFMs['MDA_clones'], ax=ax, color='k')
+ax.set(title='')
+fig.savefig(os.path.join(path_results, 'VG_like_AFs.pdf'), dpi=500)
+
 ##############
 
 # Fancy coverage plot
@@ -102,6 +108,12 @@ for i, x in enumerate(samples):
 fig.suptitle('MT-genome coverage')
 fig.tight_layout()
 fig.savefig(os.path.join(path_results, 'MT_coverage.png'), dpi=300)
+
+# Fig paper
+# fig, ax = plt.subplots(figsize=(4.5,4.5), subplot_kw={'projection': 'polar'})
+# MT_coverage_polar(AFMs['MDA_clones'], ax=ax)
+# fig.tight_layout()
+# fig.savefig(os.path.join(path_results, 'MT_coverage.pdf'), dpi=500)
 
 ##############
 

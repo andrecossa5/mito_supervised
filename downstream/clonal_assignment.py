@@ -70,11 +70,6 @@ counts = counts.loc[
 
 # Filter UMIs
 counts = mark_UMIs(counts, coverage_treshold=coverage_treshold, nbins=50)
-fig, ax = plt.subplots(figsize=(5,5))
-viz_UMIs(counts, by='status', ax=ax, nbins=50, c=None)
-ax.set(title=sample)
-fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'{sample}_filtered_UMIs.png'), dpi=300)
 
 # Get combos
 df_combos = get_combos(counts, gbc_col=f'GBC_{correction_type}')
@@ -100,7 +95,7 @@ occurrences.median()
 unique_cells = (M>0).sum(axis=1).loc[lambda x: x==1].index
 
 # Merge with AFM and change names
-afm.obs_names = afm.obs_names.map(lambda x: '_'.join([x, sample]))
+# afm.obs_names = afm.obs_names .map(lambda x: '_'.join([x, sample]))
 unique_cells = unique_cells.map(lambda x: '_'.join([x, sample]))
 common = set(meta.query("sample==@sample").index) & set(unique_cells) & set(afm.obs_names)
 common = list(common)
@@ -146,21 +141,17 @@ fig.savefig(os.path.join(path_results, f'{sample}_UMIs_vs_poisson.png'), dpi=300
 
 
 # Viz final CBC-GBC combos
-fig, axs = plt.subplots(1,2,figsize=(10,5))
-sns.scatterplot(data=df_combos, x='normalized_abundance', y='max_ratio', ax=axs[0])
-axs[0].axvline(x=normalized_abundance_treshold, color='k')
-axs[0].axhline(y=max_ratio_treshold, color='k')
+fig, axs = plt.subplots(1,2,figsize=(9,4.5))
+viz_UMIs(counts, by='status', ax=axs[0], nbins=50, c=None)
 sns.kdeplot(data=df_combos, x='normalized_abundance', y='max_ratio', ax=axs[1])
 axs[1].axvline(x=normalized_abundance_treshold, color='k')
 axs[1].axhline(y=max_ratio_treshold, color='k')
-axs[1].text(.27,.13,
-    f'n CBC-GBC combinations: {np.sum(df_combos["status"]=="supported")} ({np.sum(df_combos["status"]=="supported")/df_combos.shape[0]*100:.2f}%)',
+axs[1].text(.27,.13,f'n CBC-GBC combos: {np.sum(df_combos["status"]=="supported")} ({np.sum(df_combos["status"]=="supported")/df_combos.shape[0]*100:.2f}%)',
     transform=axs[1].transAxes
 )
 axs[1].text(.27,.09, f'n 1-GBC cells: {cells_df.shape[0]}', transform=axs[1].transAxes)
-fig.suptitle(sample)
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, f'{sample}_selected_CBC_GBC.png'), dpi=300)
+fig.savefig(os.path.join(path_results, f'{sample}_selected_CBC_GBC.pdf'), dpi=500)
 
 
 ##

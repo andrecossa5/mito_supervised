@@ -82,15 +82,15 @@ for i, x in enumerate(df['metric'].unique()):
 
     df_ = df.query('metric == @x')
     ax = plt.subplot(2,2,i+1)
-    box(df_, 'method', 'value', c='white', ax=ax, order=order, alpha=.5)
-    strip(df_, 'method', 'value', c=colors, ax=ax, order=order)
+    box(df_, 'method', 'value', ax=ax, c=colors, order=order, alpha=.5)
+    strip(df_, 'method', 'value', c=colors, ax=ax, order=order, s=7)
     format_ax(ax, ylabel=x)
     ax.spines[['right', 'top']].set_visible(False)
 
 fig.tight_layout()
 fig.savefig(
-    os.path.join(path_results, f'filtering_methods_and_GT.png'), 
-    dpi=300
+    os.path.join(path_results, f'filtering_methods_and_GT.pdf'), 
+    dpi=500
 )
 
 

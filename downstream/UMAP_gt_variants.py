@@ -35,7 +35,7 @@ path_results = os.path.join(path_main, 'results', 'supervised_clones')
 with open(os.path.join(path_results, 'variants.pickle'), 'rb') as f:
     d = pickle.load(f)
 # Extract only GT
-GT = { k[0] : d[k] for k in d if k[1]=='GT' }
+GT = { k[0] : d[k] for k in d if k[1]=='MQuad' }
 # Colors
 with open(os.path.join(path_data, 'clones_colors_sc.pickle'), 'rb') as f:
     colors = pickle.load(f)
@@ -70,47 +70,60 @@ fig, axs = plt.subplots(2,2,figsize=(5.5,6))
 
 sample = 'AML_clones'
 draw_embeddings(
-    UMAPs[sample], cat='GBC', ax=axs[0,0], 
+    UMAPs[sample], 
+    # 'Diff1', 'Diff2',
+    # 'PC1', 'PC2',
+    cat='GBC', ax=axs[0,0], 
     title=f'{sample} (kNN purity={purities[sample]:.2f})',
     legend_kwargs={'colors': { k:colors[k] for k in colors if k in UMAPs[sample]['GBC'].unique() } },
     axes_kwargs={'legend':False},
     s=s
 )
-# axs[0,0].axis('off')
+axs[0,0].axis('off')
 
 sample = 'MDA_clones'
 draw_embeddings(
-    UMAPs[sample], cat='GBC', ax=axs[0,1], 
+    UMAPs[sample], 
+    # 'Diff1', 'Diff2',
+    # 'PC1', 'PC2',
+    cat='GBC', ax=axs[0,1], 
     title=f'{sample} (kNN purity={purities[sample]:.2f})',
     legend_kwargs={'colors': { k:colors[k] for k in colors if k in UMAPs[sample]['GBC'].unique() } },
     axes_kwargs={'legend':False}, 
     s=s
 )
-# axs[0,1].axis('off')
+axs[0,1].axis('off')
 
 sample = 'MDA_PT'
 draw_embeddings(
-    UMAPs[sample], cat='GBC', ax=axs[1,0], 
+    UMAPs[sample], 
+    # 'Diff1', 'Diff2',
+    # 'PC1', 'PC2',
+    cat='GBC', ax=axs[1,0], 
     title=f'{sample} (kNN purity={purities[sample]:.2f})',
     legend_kwargs={'colors': { k:colors[k] for k in colors if k in UMAPs[sample]['GBC'].unique() } },
     axes_kwargs={'legend':False}, 
     s=s
 )
-# axs[1,0].axis('off')
+axs[1,0].axis('off')
 
 sample = 'MDA_lung'
 draw_embeddings(
-    UMAPs[sample], cat='GBC', ax=axs[1,1], 
+    UMAPs[sample],
+    # 'Diff1', 'Diff2',
+    # 'PC1', 'PC2',
+    cat='GBC', ax=axs[1,1], 
     title=f'{sample} (kNN purity={purities[sample]:.2f})',
     legend_kwargs={'colors': { k:colors[k] for k in colors if k in UMAPs[sample]['GBC'].unique() } },
     axes_kwargs={'legend':False}, 
     s=s
 )
-# axs[1,1].axis('off')
+axs[1,1].axis('off')
 
 fig.tight_layout()
 fig.savefig(
-    os.path.join(path_results, f'GBC_GT_umaps.png'),
+    os.path.join(path_results, f'GBC_GT_umaps.pdf'),
+    # os.path.join(path_results, f'PCA.png'),
     dpi=500
 )
 

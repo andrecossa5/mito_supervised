@@ -73,14 +73,16 @@ for i, sample in enumerate(order):
     df_ = df_freq.query('sample==@sample and freq>=0.01').set_index('GBC')
     packed_circle_plot(
         df_, covariate='freq', ax=ax, color=clones_colors, annotate=True, t_cov=.05,
-        alpha=.5, linewidth=1.5
+        alpha=.65, linewidth=1.5, fontsize=8, fontcolor='k', fontweight='medium'
+# fontweight or weight: {a numeric value in range 0-1000, 'ultralight', 'light', 'normal', 'regular', 'book', 'medium', 'roman', 'semibold', 'de
+# mibold', 'demi', 'bold', 'heavy', 'extra bold', 'black'}
     )
     ax.set(title=sample)
     fig.tight_layout()
     ax.axis('off')
 
 fig.subplots_adjust(bottom=.1, top=.9, left=.1, right=.9, wspace=.2, hspace=.5)
-fig.savefig(os.path.join(path_results, 'circle_packed.png'), dpi=300)
+fig.savefig(os.path.join(path_results, 'circle_packed.pdf'), dpi=1000)
 
 
 ##

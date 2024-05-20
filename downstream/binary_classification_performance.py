@@ -134,7 +134,8 @@ top_3 = (
 # Combos
 # combo = ['sample', 'model', 'filtering']
 # combo = ['model', 'filtering']
-combo = ['filtering']
+# combo = ['filtering']
+combo = ['sample', 'filtering']
 # combo = ['model']
 
 # Viz all_models, grouped by some combos
@@ -153,7 +154,7 @@ df_ = df_.assign(
 )
 # Top combo
 df_['final_rank'] = df_[df_.columns[df_.columns.str.contains('rank')]].mean(axis=1)
-df_.sort_values('final_rank', ascending=True)
+df_ = df_.sort_values('AUPRC', ascending=False).set_index('cat')
 
 
 ##
@@ -161,18 +162,20 @@ df_.sort_values('final_rank', ascending=True)
 
 # Viz aggregate combos
 fig, ax = plt.subplots(figsize=(5,7))
-x = metric
+x = 'AUPRC'
 ax.hlines(y=df_.index, xmin=0, xmax=df_[x], color='k')
-ax.plot(df_[x], df_[x].index, "o", color='darkred', markeredgecolor='k', markersize=5)
+ax.plot(df_[x], df_[x].index, "o", color='darkred', markersize=10, 
+        zorder=10, markeredgecolor='k')
 ax.invert_yaxis()
 format_ax(
-    ax, xlabel='value', yticks=df_['cat'], 
-    title=f'{"_".join(combo)}\n median AUPRC: {df_["AUCPR"].median():.2f}',
-    yticks_size=6
+    ax, yticks=df_.index, 
+    title=f'{"_".join(combo)}\n median AUPRC: {df_["AUPRC"].median():.2f}',
+    yticks_size=10, xlabel='AUPRC'
 )
 ax.spines[['right', 'top', 'left']].set_visible(False)
+ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=True, labelright=False)
 fig.tight_layout()
-plt.show()
+fig.savefig(os.path.join(path_supervised, 'AUCPR_summary.pdf'), dpi=300)
 
 
 ##
@@ -255,7 +258,7 @@ for i, sample in enumerate(samples_order):
 fig.suptitle(f'{metric} top 3 models')
 fig.tight_layout()
 fig.savefig(os.path.join(
-    path_supervised, f'{metric}_top3_models_performances_good_samples.png'),
+    path_supervised, f'{metric}_top3_models_performances_good_samples.pdf'),
     dpi=300
 )
 

@@ -36,7 +36,7 @@ with open(os.path.join(path_results, 'variants.pickle'), 'rb') as f:
 
 
 # For each sample 
-sample = 'MDA_PT'
+sample = 'AML_clones'
 afm = read_one_sample(path_data, sample, with_GBC=True)
 a_cells, a = filter_cells_and_vars(afm, filtering='pegasus', min_cell_number=10)
 a = nans_as_zeros(a)
@@ -70,7 +70,7 @@ for i,method in enumerate(methods):
 fig.suptitle(f'{sample} variants selection')
 fig.subplots_adjust(left=.05, right=.95, top=.8, bottom=.15, wspace=.27)
 fig.savefig(
-    os.path.join(path_results, f'{sample}_AF_like_variants_by_method.png'),
+    os.path.join(path_results, f'{sample}_AF_like_variants_by_method.pdf'),
     dpi=500
 )
 

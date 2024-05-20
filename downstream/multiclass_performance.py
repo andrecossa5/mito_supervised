@@ -22,6 +22,10 @@ path_results = os.path.join(path_main, 'results', 'supervised_clones')
 ##
 
 
+# Groupby
+groupby = ['distance_metric']
+
+
 # Load AUPRC results
 L = []
 for sample in os.listdir(os.path.join(path_results, 'distances')):
@@ -88,7 +92,22 @@ df = df_auprc.join(df_kNN)
 
 # Top metric
 df['final_rank'] = df[df.columns[df.columns.str.contains('rank')]].mean(axis=1)
-df.sort_values('final_rank', ascending=True)
+df = df.sort_values('final_rank', ascending=True).reset_index()
+
+
+##
+
+
+# Viz
+fig, ax = plt.subplots(figsize=(4,4))
+scatter(df, 'AUPRC_median', 'kBET_rejection_rate', ax=ax, s=30, marker='x')
+format_ax(ax, title='Distance metrics', xlabel='kNN purity', ylabel='AUPRC')
+x = df['AUPRC_median']
+y = df['kBET_rejection_rate']
+ta.allocate_text(fig, ax, x, y, df['distance_metric'].values, x_scatter=x, y_scatter=y,
+    linecolor='black', textsize=8, max_distance=0.5, linewidth=0.5, nbr_candidates=100)
+fig.tight_layout()
+fig.savefig(os.path.join(path_results, 'multiclass_distances.pdf'), dpi=300)
 
 
 ##

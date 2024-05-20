@@ -29,7 +29,7 @@ bar(df_, x='sample', y='n clones', edgecolor='k', c='k', s=.7, a=.7, ax=axs[1])
 format_ax(axs[1], ylabel='n clones', xticks=df_['sample'], reduced_spines=True, rotx=90)
 
 fig.tight_layout()
-fig.savefig(os.path.join(path_results, 'ncells_nclones.png'), dpi=300)
+fig.savefig(os.path.join(path_results, 'ncells_nclones.pdf'), dpi=500)
 
 
 ##
