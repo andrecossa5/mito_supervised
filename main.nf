@@ -1,7 +1,6 @@
-// MI_TO pipeline
+// MI_TO suprevised pipeline
 nextflow.enable.dsl = 2
 include { classification_clones } from "./subworkflows/clones/main"
-// include { classification_samples } from "./subworkflows/samples/main"
 
 // Samples channel
 ch_samples = Channel
@@ -22,15 +21,6 @@ workflow clones {
     classification_clones.out.job_output.view()
 
 }
-
-//
-
-// workflow samples {
-// 
-//     classification_samples(ch_samples)
-//     classification_samples.out.summary.view()
-// 
-// }
 
 // Mock
 workflow  {

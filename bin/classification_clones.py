@@ -39,10 +39,26 @@ my_parser.add_argument(
 
 # Filter
 my_parser.add_argument(
-    '--filtering', 
+    '--filtering_key', 
     type=str,
-    default='ludwig2019',
+    default='MI_TO',
     help='Method to filter MT-SNVs. Default: ludwig2019.'
+)
+
+# Filter
+my_parser.add_argument(
+    '--path_filtering', 
+    type=str,
+    default='MI_TO',
+    help='Path to filtering options json. Default: None.'
+)
+
+# Priors
+my_parser.add_argument(
+    '--path_priors', 
+    type=str,
+    default='None',
+    help='Path to priors.csv. Default: None.'
 )
 
 # Dimred
@@ -117,56 +133,43 @@ my_parser.add_argument(
     help='Classification performance scoring type. Default: f1-score.'
 )
 
-# Score
-my_parser.add_argument(
-    '--blacklist', 
-    type=str,
-    default='.',
-    help='Path to variant blacklist file. Default: ..'
-)
-
-# skip
-my_parser.add_argument(
-    '--skip', 
-    action='store_true',
-    help='Skip analysis. Default: False.'
-)
 
 # Parse arguments
 args = my_parser.parse_args()
 
 path_data = args.path_data
+path_priors = args.path_priors
 sample = args.sample
 dimred = args.dimred
-filtering = args.filtering if dimred == 'no_dimred' else 'pegasus'
+filtering_key = args.filtering_key
+path_filtering = args.path_filtering
 model = args.model
 n_combos = args.ncombos
 ncores = args.ncores 
 score = args.score
 min_cell_number = args.min_cell_number
-min_cov_treshold = args.min_cov_treshold
 n_comps = args.n_comps
 GS_mode = args.GS_mode
-path_blacklist = args.blacklist
 
-########################################################################
 
-# Preparing run: import code, prepare directories, set logger
-if not args.skip:
+##
 
-    # Code
-    import pickle
-    from mito_utils.utils import *
-    from mito_utils.preprocessing import *
-    from mito_utils.dimred import *
-    from mito_utils.classification import *
 
-    # Set logger
-    path = os.getcwd() 
-    logger = set_logger(
-        path, 
-        f'log_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.txt'
-    )
+# Code
+import json
+import pickle
+from mito_utils.utils import *
+from mito_utils.preprocessing import *
+from mito_utils.dimred import *
+from mito_utils.classification import *
+
+# Set logger
+path = os.getcwd() 
+logger = set_logger(path, f'log_{sample}_{filtering_key}_{dimred}_{model}_{GS_mode}_{min_cell_number}.txt')
+
+
+##
+
 
 ########################################################################
 
@@ -184,65 +187,60 @@ def main():
         f""" 
         Execute clones classification: \n
         --sample {sample} 
-        --filtering {filtering} 
+        --filtering_key {filtering_key} 
+        --path_filtering {path_filtering} 
         --dimred {dimred} 
         --model {model}
         --ncombos {n_combos} 
         --score {score} 
-        --min_cell_number {min_cell_number} 
-        --min_cov_treshold {min_cov_treshold}
+        --min_cell_number {min_cell_number}
         """
     )
     
+    # Read AFM
     afm = read_one_sample(path_data, sample=sample, with_GBC=True)
     ncells0 = afm.shape[0]
     n_all_clones = len(afm.obs['GBC'].unique())
 
+    # Prep filtering kwargs
+    with open(path_filtering, 'r') as file:
+        FILTERING_OPTIONS = json.load(file)
+
+    if filtering_key in FILTERING_OPTIONS:
+        d = FILTERING_OPTIONS[filtering_key]
+        filtering = d['filtering']
+        filtering_kwargs = d['filtering_kwargs'] if 'filtering_kwargs' in d else {}
+    else:
+        raise KeyError(f'{filtering_key} not in {path_filtering}!')
+
+    # Filter variants
+    _, a = filter_cells_and_vars(
+        afm, 
+        sample_name=sample,
+        filtering=filtering, 
+        nproc=ncores,
+        filtering_kwargs=filtering_kwargs,
+        lineage_column='GBC',
+        path_priors=path_priors if path_priors != 'NULL' else None
+    )
+
+
     ##
 
-    # Filter 'good quality' cells and variants
+
+    # Re-format
+    a = nans_as_zeros(a) # For sklearn APIs compatibility
+    cells = a.obs_names
+    variants = a.var_names
+    ncells = cells.size
+    n_clones_analyzed = len(a.obs['GBC'].unique())
+    
+    # Filter 'good quality' cells and variants, reduce dimension if necessary
     if dimred == 'no_dimred':
-
-        if filtering != 'GT':
-            _, a = filter_cells_and_vars(
-                afm,
-                sample=sample,
-                filtering=filtering, 
-                min_cell_number=min_cell_number, 
-                min_cov_treshold=min_cov_treshold, 
-                nproc=ncores, 
-                path_=path
-            )
-        else:
-            _, a = filter_afm_with_gt(afm, min_cells_clone=min_cell_number)
-
-        # Extract X, y
-        a = nans_as_zeros(a) # For sklearn APIs compatibility
-        cells = a.obs_names
-        variants = a.var_names
-        ncells = cells.size
-        n_clones_analyzed = len(a.obs['GBC'].unique())
         X = a.X
         y = pd.Categorical(a.obs['GBC'])
         Y = one_hot_from_labels(y)
-
     else:
-
-        _, a = filter_cells_and_vars(
-            afm,
-            sample=sample,
-            filtering=filtering, 
-            min_cell_number=min_cell_number, 
-            min_cov_treshold=min_cov_treshold, 
-            nproc=ncores
-        )
-
-        # Extract X, y, cells and variants
-        a = nans_as_zeros(a) # For sklearn APIs compatibility
-        cells = a.obs_names
-        variants = a.var_names
-        ncells = cells.size
-        n_clones_analyzed = len(a.obs['GBC'].unique())
         X, _ = reduce_dimensions(a, method=dimred, n_comps=n_comps, sqrt=False)
         y = pd.Categorical(a.obs['GBC'])
         Y = one_hot_from_labels(y)
@@ -252,6 +250,10 @@ def main():
     logger.info(f'Reading and formatting AFM, X and y, took total {t.stop()}')
     logger.info(f'Total cells and clones in the original QCed sample (perturb seq QC metrics): {ncells0}; {n_all_clones}.')
     logger.info(f'Total cells, clones and features submitted to classification: {ncells}; {n_clones_analyzed}, {X.shape[1]}.')
+
+
+    ##
+
 
     # Here we go
     L = []
@@ -283,7 +285,6 @@ def main():
             'filtering' : filtering, 
             'dimred' : dimred,
             'min_cell_number' : min_cell_number,
-            'min_cov_treshold' : min_cov_treshold,
             'ncells_clone' : y_.sum(),
             'ncells_sample' : ncells,
             'clone_prevalence' : y_.sum() / ncells,
@@ -327,10 +328,8 @@ def main():
 
 # Run program
 if __name__ == "__main__":
-    if not args.skip:
-        main()
+    main()
 
-#######################################################################
 
 
 
