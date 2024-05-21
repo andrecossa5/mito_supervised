@@ -312,7 +312,7 @@ def main():
     # Save all as a pickle
     path_results = os.path.join(
         path, 
-        f'out_{sample}_{filtering}_{dimred}_{model}_{GS_mode}_{min_cell_number}.pickle'
+        f'out_{sample}_{filtering_key}_{dimred}_{model}_{GS_mode}_{min_cell_number}.pickle'
     )
     with open(path_results, 'wb') as f:
         pickle.dump(
