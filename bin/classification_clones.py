@@ -218,6 +218,7 @@ def main():
         afm, 
         sample_name=sample,
         filtering=filtering, 
+        min_cell_number=min_cell_number,
         nproc=ncores,
         filtering_kwargs=filtering_kwargs,
         lineage_column='GBC',
