@@ -267,43 +267,49 @@ def main():
             
         comparison = f'{y.categories[i]}_vs_rest'
         y_ = Y[:,i]
-            
-        logger.info(f'Starting comparison {comparison} ({i+1}/{Y.shape[1]})...')
+        
+        if y_.sum()>=10:
 
-        # Classification
-        results = classification(
-            X, y_, key=model, GS=True, GS_mode=GS_mode,
-            score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1, feature_names=variants
-        )
+            logger.info(f'Starting comparison {comparison} ({i+1}/{Y.shape[1]})...')
+
+            # Classification
+            results = classification(
+                X, y_, key=model, GS=True, GS_mode=GS_mode,
+                score=score, n_combos=n_combos, cores_model=ncores, cores_GS=1, feature_names=variants
+            )
+
+            # Pack results up
+            performance_dict = results['performance_dict']
+            del results['performance_dict']
+
+            # Performance
+            performance_dict |= {
+                'sample' : sample,
+                'filtering' : filtering, 
+                'dimred' : dimred,
+                'min_cell_number' : min_cell_number,
+                'ncells_clone' : y_.sum(),
+                'ncells_sample' : ncells,
+                'clone_prevalence' : y_.sum() / ncells,
+                'n_clones_analyzed' : n_clones_analyzed,
+                'n_features' : variants.size, 
+                'model' : model,
+                'tuning' : GS_mode,
+                'score_for_tuning' : score,
+                'comparison' : comparison
+            }
+            # Model + useful stuff 
+            results |= {'cells':cells, 'variants':variants}
+
+            # Store comparison performance_df and results pickle
+            L.append(performance_dict)
+            trained_models[comparison] = results
+
+            logger.info(f'Finished {comparison} ({i+1}/{Y.shape[1]}): {t.stop()}')
         
-        # Pack results up
-        performance_dict = results['performance_dict']
-        del results['performance_dict']
-        
-        # Performance
-        performance_dict |= {
-            'sample' : sample,
-            'filtering' : filtering, 
-            'dimred' : dimred,
-            'min_cell_number' : min_cell_number,
-            'ncells_clone' : y_.sum(),
-            'ncells_sample' : ncells,
-            'clone_prevalence' : y_.sum() / ncells,
-            'n_clones_analyzed' : n_clones_analyzed,
-            'n_features' : variants.size, 
-            'model' : model,
-            'tuning' : GS_mode,
-            'score_for_tuning' : score,
-            'comparison' : comparison
-        }
-        # Model + useful stuff 
-        results |= {'cells':cells, 'variants':variants}
-        
-        # Store comparison performance_df and results pickle
-        L.append(performance_dict)
-        trained_models[comparison] = results
-        
-        logger.info(f'Finished {comparison} ({i+1}/{Y.shape[1]}): {t.stop()}')
+        else:
+
+            logger.info(f'Comparison {comparison} skipped: too low {y_.sum()} cells...')
 
     # Save results as csv
     df = pd.DataFrame(L)
