@@ -1,13 +1,12 @@
 {
     "path_data" : "/Users/IEO5505/Desktop/mito_bench/data/",
-    "outdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/output_trial/",
-    "logdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/logs_trial/",
+    "outdir" : "/Users/IEO5505/Desktop/mito_bench/results/supervised_clones_f1/output/",
     "n_combos" : 100,
-    "path_filtering" : "/Users/IEO5505/Desktop/AML_clonal_reconstruction/data/vars_df/filtering_options.json",
+    "path_filtering" : "/Users/IEO5505/Desktop/mito_bench/data/filtering_options_stringent.json",
     "path_priors" : "NULL",
     "GS_mode" : ["random"],
     "dimred" : ["no_dimred"],
     "model" : ["xgboost"],
-    "score" : "precision",
+    "score" : "f1",
     "min_cell_number" : [10]
 }

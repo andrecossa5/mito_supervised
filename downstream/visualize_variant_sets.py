@@ -128,7 +128,6 @@ for i, key in enumerate(chosen):
     # df_ = pd.DataFrame(X, columns=cols, index=a.obs_names).join(a.obs)
     # draw_embeddings(df_, cat='GBC', ax=axs[1,i], title='', 
     #                 legend_kwargs={'colors':colors}, axes_kwargs={'legend':False})
-
 fig.subplots_adjust(wspace=.2, hspace=.2)
 fig.savefig(os.path.join(path_results, f'{sample}_var_sets.png'), dpi=1000)
 

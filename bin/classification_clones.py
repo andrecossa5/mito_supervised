@@ -285,7 +285,7 @@ def main():
             # Performance
             performance_dict |= {
                 'sample' : sample,
-                'filtering' : filtering, 
+                'filtering_key' : filtering_key, 
                 'dimred' : dimred,
                 'min_cell_number' : min_cell_number,
                 'ncells_clone' : y_.sum(),
@@ -313,7 +313,7 @@ def main():
 
     # Save results as csv
     df = pd.DataFrame(L)
-    logger.info(df['f1'].describe())
+    logger.info(df['AUPRC'].describe())
 
     # Save all as a pickle
     path_results = os.path.join(

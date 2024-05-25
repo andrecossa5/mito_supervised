@@ -17,49 +17,60 @@ matplotlib.use('macOSX')
 ##
 
 # Args
-path_supervised = '/Users/IEO5505/Desktop/mito_bench/results/supervised_clones'
+path_results = '/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/'
 
 # Create report of classification performance
 # L = []
 # pickles = [ 
-#     x for x in os.listdir(os.path.join(path_supervised, 'output')) \
+#     x for x in os.listdir(os.path.join(path_results, 'GT_stringent')) \
 #     if bool(re.search('.pickle', x)) 
 # ]
 # for p in pickles:
-#     try:
-#         with open(os.path.join(path_supervised, 'output', p), 'rb') as f:
-#             d = pickle.load(f)
-#     except:
-#         print('Logit, still only stub')
-#     L.append(d['performance_df'])
+#     filtering_key = '_'.join(p.split('_')[3:-5])                        # To fix
+#     with open(os.path.join(path_results, 'GT_stringent', p), 'rb') as f:
+#         d = pickle.load(f)
+#         L.append(d['performance_df'].assign(filtering_key=filtering_key))
 # 
-# # Concat and save
-# pd.concat(L).to_csv(os.path.join(path_supervised, 'report_f1.csv'))
+# # Concat, reformat and save
+# df = pd.concat(L)
+
+# d_rename = {
+#     k:v for k,v in zip(
+#         ['medium_sensitivity_very_rare', 'medium_sensitivity_rare', 'n5_40', 
+#          'miller_2022_supp_2', 'n5_20', 'miller_2022_supp_1', 'weng2024', 'MQuad', 'n5_30'],
+#         [ 'n5>2', 'n5>5', 'n5>40', 'n10>10', 'n5>20', 'n10>5', 'weng2024', 'MQuad', 'n5>30' ])
+# }
+
+# df['filtering_key'] = df['filtering_key'].map(d_rename)
+# df = df.rename(columns={'AUCPR':'AUPRC'})
+# df.to_csv(os.path.join(path_results, 'report_precision.csv'))
 
 
 ##
 
 
-# Save MT-SNVs subsets
+# Save tested MT-SNVs subsets
 # d = {}
 # pickles = [ 
-#     x for x in os.listdir(os.path.join(path_supervised, 'output')) \
+#     x for x in os.listdir(os.path.join(path_results, 'outs')) \
 #     if bool(re.search('.pickle', x)) 
 # ]
 # for p in pickles:
-#     try:
-#         with open(os.path.join(path_supervised, 'output', p), 'rb') as f:
-#             r = pickle.load(f)
-#     except:
-#         print('stub file')
+#     sample = '_'.join(p.split('_')[1:3])
+#     # filtering_key = 'stringent'
+#     filtering_key = '_'.join(p.split('_')[3:-5]) 
+#     filtering_key = d_rename[filtering_key]  
+#     with open(os.path.join(path_results, 'outs', p), 'rb') as f:
+#         r = pickle.load(f)
 #     k = r['performance_df'][['sample', 'filtering']].drop_duplicates().values[0]
 #     k = tuple(k)
 #     if k not in d:
 #         _ = list(r['trained_models'].keys())[0]
-#         d[k] = r['trained_models'][_]['variants'].to_list()
+#         d[(sample, filtering_key)] = r['trained_models'][_]['variants'].to_list()
+# 
 # 
 # # Save
-# with open(os.path.join(path_supervised, 'variants.pickle'), 'wb') as f:
+# with open(os.path.join(path_results, 'variants.pickle'), 'wb') as f:
 #     pickle.dump(d, f)
 
 
@@ -67,9 +78,12 @@ path_supervised = '/Users/IEO5505/Desktop/mito_bench/results/supervised_clones'
 
 
 # Read report
-df = pd.read_csv(os.path.join(path_supervised, 'report_f1.csv'), index_col=0)
+df1 = pd.read_csv(os.path.join(path_results, 'GT_stringent_report_precision.csv'), index_col=0)
+df2 = pd.read_csv(os.path.join(path_results, 'report_precision.csv'), index_col=0)
+df = pd.concat([df1, df2])
 
 # Precision analysis
+
 # Corr clone_prevalence and performance
 fig, ax = plt.subplots(figsize=(3.5,4))
 
@@ -84,12 +98,11 @@ format_ax(
     xticks=bins, title=f'Pearson\'s r: {corr[0,1]:.2f}'
 )
 fig.tight_layout()
-fig.savefig(os.path.join(
-    path_supervised, 'precision_vs_clone_prevalence.png'),
-    dpi=300
-)
+fig.savefig(os.path.join(path_results, 'precision_vs_clone_prevalence.png'), dpi=300)
+
 
 ##
+
 
 # Corr clone_prevalence and performance
 fig, ax = plt.subplots(figsize=(3.5,4))
@@ -102,10 +115,7 @@ format_ax(
     title=f'Pearson\'s r: {corr[0,1]:.2f}'
 )
 fig.tight_layout()
-fig.savefig(os.path.join(
-    path_supervised, 'precision_vs_n_clones.png'),
-    dpi=300
-)
+fig.savefig(os.path.join(path_results, 'precision_vs_n_clones.png'),dpi=300)
 
 
 ##
@@ -123,24 +133,21 @@ top_3 = (
     df.groupby(['sample', 'comparison'])
     .apply(lambda x: x.sort_values(metric, ascending=False).head(3))
     [['n_clones_analyzed', 'clone_prevalence', 'ncells_clone', 'ncells_sample',
-      'filtering', 'model', 'AUPRC', 'precision', 'recall', 'f1']]
+      'filtering_key', 'model', 'AUPRC', 'precision', 'recall', 'f1']]
     .droplevel(2).reset_index()
 )
+top_3.groupby(['sample', 'comparison'])[metric].median().describe()
 
 
 ##
 
 
 # Combos
-# combo = ['sample', 'model', 'filtering']
-# combo = ['model', 'filtering']
-# combo = ['filtering']
-combo = ['sample', 'filtering']
-# combo = ['model']
+combo = ['sample', 'filtering_key']
 
 # Viz all_models, grouped by some combos
 df_ = (
-    df[['precision', 'recall', 'f1', 'AUPRC', 'model', 'filtering', 'sample']]
+    df[['precision', 'recall', 'f1', 'AUPRC', 'model', 'filtering_key', 'sample']]
     .groupby(combo)[['precision', 'recall', 'f1', 'AUPRC']]
     .median().reset_index()
     .sort_values(metric, ascending=False)
@@ -167,15 +174,11 @@ ax.hlines(y=df_.index, xmin=0, xmax=df_[x], color='k')
 ax.plot(df_[x], df_[x].index, "o", color='darkred', markersize=10, 
         zorder=10, markeredgecolor='k')
 ax.invert_yaxis()
-format_ax(
-    ax, yticks=df_.index, 
-    title=f'{"_".join(combo)}\n median AUPRC: {df_["AUPRC"].median():.2f}',
-    yticks_size=10, xlabel='AUPRC'
-)
+format_ax(ax, yticks=df_.index, yticks_size=10, xlabel='AUPRC')
 ax.spines[['right', 'top', 'left']].set_visible(False)
 ax.tick_params(axis='y', which='both', left=False, right=False, labelleft=True, labelright=False)
 fig.tight_layout()
-fig.savefig(os.path.join(path_supervised, 'AUCPR_summary.pdf'), dpi=300)
+fig.savefig(os.path.join(path_results, 'AUCPR_summary.png'), dpi=300)
 
 
 ##
@@ -258,9 +261,11 @@ for i, sample in enumerate(samples_order):
 fig.suptitle(f'{metric} top 3 models')
 fig.tight_layout()
 fig.savefig(os.path.join(
-    path_supervised, f'{metric}_top3_models_performances_good_samples.pdf'),
-    dpi=300
+    path_results, f'{metric}_top3_models_performances_good_samples.png'),
+    dpi=500
 )
 
 
 ##
+
+

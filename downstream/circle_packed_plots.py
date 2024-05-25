@@ -67,7 +67,7 @@ for ax, sample in zip(axs.flat, order):
     df_ = df_freq.query('sample==@sample and freq>=@f').set_index('GBC')
     packed_circle_plot(
         df_, covariate='freq', ax=ax, color=clones_colors, annotate=True, t_cov=.05,
-        alpha=.65, linewidth=1.5, fontsize=7.5, fontcolor='k', fontweight='medium'
+        alpha=.5, linewidth=2.5, fontsize=7.5, fontcolor='k', fontweight='medium'
     )
     ax.set(title=sample)
     ax.axis('off')

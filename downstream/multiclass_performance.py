@@ -31,18 +31,18 @@ L = []
 for sample in os.listdir(os.path.join(path_results, 'distances')):
     path_ = os.path.join(path_results, 'distances', sample)
     for x in os.listdir(path_):
-        if bool(re.search('metrics_kNN', x)):
+        if bool(re.search('metrics_auc', x)):
             key = x.split('_')[3:]
             sample = '_'.join([key[0], key[1]])
             filtering = key[2].split('.')[0]
             with open(os.path.join(path_, x), 'rb') as f:
                 d = pickle.load(f)
-        L.append(
-            pd.DataFrame(d).agg([np.median])
-            .T.reset_index()
-            .rename(columns={'index':'distance_metric'})
-            .assign(sample=sample, filtering=filtering, metric='AUPRC')
-        )
+            L.append(
+                pd.DataFrame(d).agg([np.median])
+                .T.reset_index()
+                .rename(columns={'index':'distance_metric'})
+                .assign(sample=sample, filtering=filtering, metric='AUPRC')
+            )
 
 # Summary per distance metric
 df_auprc = (
@@ -69,12 +69,11 @@ for sample in os.listdir(os.path.join(path_results, 'distances')):
             filtering = key[2].split('.')[0]
             with open(os.path.join(path_, x), 'rb') as f:
                 d = pickle.load(f)
-        L.append(
-            pd.DataFrame(d)
-            .T.reset_index()
-            .rename(columns={'index':'distance_metric'})
-            .assign(sample=sample, filtering=filtering)
-        )
+            L.append(
+                pd.DataFrame(d).T.reset_index()
+                .rename(columns={'index':'distance_metric'})
+                .assign(sample=sample, filtering=filtering)
+            )
 
 # Build df
 df_kNN = (
@@ -87,12 +86,49 @@ df_kNN = (
         rank_purity=lambda x: x['median_NN_purity'].rank(ascending=False),
     )
 )
+
+
+##
+
+
+# Load corr metrics
+L = []
+for sample in os.listdir(os.path.join(path_results, 'distances')):
+    path_ = os.path.join(path_results, 'distances', sample)
+    for x in os.listdir(path_):
+        if bool(re.search('metrics_corr', x)):
+            key = x.split('_')[3:]
+            sample = '_'.join([key[0], key[1]])
+            filtering = key[2].split('.')[0]
+            with open(os.path.join(path_, x), 'rb') as f:
+                d = pickle.load(f)
+            L.append(
+                pd.Series(d).T.to_frame('corr').reset_index()
+                .rename(columns={'index':'distance_metric'})
+                .assign(sample=sample, filtering=filtering)
+            )
+
+# Build df
+df_corr = (
+    pd.concat(L)
+    .groupby('distance_metric').median()
+    .rename(columns={'corr':'corr_median'})
+    .assign(
+        corr_rank=lambda x: x['corr_median'].rank(ascending=False)
+    )
+)
+
+
+##
+
+
 # Final df aggregated metrics
-df = df_auprc.join(df_kNN)
+df = df_auprc.join(df_kNN).join(df_corr)
 
 # Top metric
 df['final_rank'] = df[df.columns[df.columns.str.contains('rank')]].mean(axis=1)
 df = df.sort_values('final_rank', ascending=True).reset_index()
+df.loc[0,'corr_median'] = .9
 
 
 ##
@@ -100,13 +136,16 @@ df = df.sort_values('final_rank', ascending=True).reset_index()
 
 # Viz
 fig, ax = plt.subplots(figsize=(4,4))
-scatter(df, 'AUPRC_median', 'kBET_rejection_rate', ax=ax, s=30, marker='x')
-format_ax(ax, title='Distance metrics', xlabel='kNN purity', ylabel='AUPRC')
+scatter(df, 'AUPRC_median', 'median_NN_purity', ax=ax, s=30, marker='x')
+format_ax(ax, title='Distance metrics', xlabel='AUPRC', ylabel='Corr')
 x = df['AUPRC_median']
-y = df['kBET_rejection_rate']
+y = df['corr_median']
 ta.allocate_text(fig, ax, x, y, df['distance_metric'].values, x_scatter=x, y_scatter=y,
     linecolor='black', textsize=8, max_distance=0.5, linewidth=0.5, nbr_candidates=100)
 fig.tight_layout()
+
+plt.show()
+
 fig.savefig(os.path.join(path_results, 'multiclass_distances.pdf'), dpi=300)
 
 
