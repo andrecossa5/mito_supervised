@@ -86,7 +86,7 @@ def main():
         results[metric] = l
 
     # Save
-    results_path = os.path.join(path_sample, f'evaluation_metrics_aucpr_{sample}_{filtering}.pickle')
+    results_path = os.path.join(path_sample, f'evaluation_metrics_aucpr_{filtering}.pickle')
     with open(results_path, 'wb') as f:
         pickle.dump(results, f)
 
@@ -119,7 +119,7 @@ def main():
     ##
 
     # Save
-    results_path = os.path.join(path_sample, f'evaluation_metrics_kNN_{sample}_{filtering}.pickle')
+    results_path = os.path.join(path_sample, f'evaluation_metrics_kNN_{filtering}.pickle')
     with open(results_path, 'wb') as f:
         pickle.dump(results, f)
 
@@ -142,7 +142,7 @@ def main():
         results[metric] = np.mean(np.corrcoef(np.array(L)))
 
     # Save
-    results_path = os.path.join(path_sample, f'evaluation_metrics_corr_{sample}_{filtering}.pickle')
+    results_path = os.path.join(path_sample, f'evaluation_metrics_corr_{filtering}.pickle')
     with open(results_path, 'wb') as f:
         pickle.dump(results, f)
 
