@@ -47,11 +47,11 @@ for sample in os.listdir(os.path.join(path_results, 'distances')):
 # Summary per distance metric
 df_auprc = (
     pd.concat(L)
-    .groupby('distance_metric').median()
+    .groupby(['sample', 'distance_metric']).median()
     .rename(columns={'median':'AUPRC_median'})
-    .assign(
-        AUPRC_rank=lambda x: x['AUPRC_median'].rank(ascending=False)
-    )
+    # .assign(
+    #     AUPRC_rank=lambda x: x['AUPRC_median'].rank(ascending=False)
+    # )
 )
 
 
@@ -78,13 +78,13 @@ for sample in os.listdir(os.path.join(path_results, 'distances')):
 # Build df
 df_kNN = (
     pd.concat(L)
-    .groupby(['distance_metric']).median()
+    .groupby(['sample', 'distance_metric']).median()
     .sort_values('median_NN_purity', ascending=False)
-    .assign(
-        rank_kBET=lambda x: x['kBET_rejection_rate'].rank(ascending=False),
-        rank_entropy=lambda x: x['median_NN_entropy'].rank(ascending=True),
-        rank_purity=lambda x: x['median_NN_purity'].rank(ascending=False),
-    )
+    # .assign(
+    #     rank_kBET=lambda x: x['kBET_rejection_rate'].rank(ascending=False),
+    #     rank_entropy=lambda x: x['median_NN_entropy'].rank(ascending=True),
+    #     rank_purity=lambda x: x['median_NN_purity'].rank(ascending=False),
+    # )
 )
 
 
@@ -111,7 +111,7 @@ for sample in os.listdir(os.path.join(path_results, 'distances')):
 # Build df
 df_corr = (
     pd.concat(L)
-    .groupby('distance_metric').median()
+    .groupby(['sample', 'distance_metric']).median()
     .rename(columns={'corr':'corr_median'})
     .assign(
         corr_rank=lambda x: x['corr_median'].rank(ascending=False)
@@ -123,30 +123,25 @@ df_corr = (
 
 
 # Final df aggregated metrics
-df = df_auprc.join(df_kNN).join(df_corr)
-
-# Top metric
-df['final_rank'] = df[df.columns[df.columns.str.contains('rank')]].mean(axis=1)
-df = df.sort_values('final_rank', ascending=True).reset_index()
-df.loc[0,'corr_median'] = .9
+df = df_auprc.join(df_kNN).join(df_corr).dropna()
+df = df.reset_index()
 
 
 ##
 
 
-# Viz
-fig, ax = plt.subplots(figsize=(4,4))
-scatter(df, 'AUPRC_median', 'median_NN_purity', ax=ax, s=30, marker='x')
-format_ax(ax, title='Distance metrics', xlabel='AUPRC', ylabel='Corr')
-x = df['AUPRC_median']
-y = df['corr_median']
-ta.allocate_text(fig, ax, x, y, df['distance_metric'].values, x_scatter=x, y_scatter=y,
-    linecolor='black', textsize=8, max_distance=0.5, linewidth=0.5, nbr_candidates=100)
+# Fig
+fig, ax = plt.subplots(figsize=(6,4.5))
+colors = create_palette(df, 'sample', ['k']+ten_godisnot[1:])
+df['sample'] = pd.Categorical(df['sample'], categories=['MDA_PT', 'MDA_lung', 'MDA_clones', 'AML_clones'])
+sns.scatterplot(data=df, x='corr_median', y='median_NN_purity', hue='sample', palette=colors.values(), style='distance_metric', s=100, ax=ax)
+ax.legend(bbox_to_anchor=(1,1), loc='upper left', frameon=False)
+ax.set(xlabel='Pearson\'s r', ylabel='kNN purity')
 fig.tight_layout()
+fig.savefig(os.path.join(path_results, 'multiclass_distances.png'), dpi=300)
 
-plt.show()
 
-fig.savefig(os.path.join(path_results, 'multiclass_distances.pdf'), dpi=300)
+##
 
 
 ##

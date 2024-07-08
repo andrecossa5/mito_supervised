@@ -49,34 +49,6 @@ path_results = '/Users/IEO5505/Desktop/mito_bench/results/supervised_clones/'
 ##
 
 
-# Save tested MT-SNVs subsets
-# d = {}
-# pickles = [ 
-#     x for x in os.listdir(os.path.join(path_results, 'outs')) \
-#     if bool(re.search('.pickle', x)) 
-# ]
-# for p in pickles:
-#     sample = '_'.join(p.split('_')[1:3])
-#     # filtering_key = 'stringent'
-#     filtering_key = '_'.join(p.split('_')[3:-5]) 
-#     filtering_key = d_rename[filtering_key]  
-#     with open(os.path.join(path_results, 'outs', p), 'rb') as f:
-#         r = pickle.load(f)
-#     k = r['performance_df'][['sample', 'filtering']].drop_duplicates().values[0]
-#     k = tuple(k)
-#     if k not in d:
-#         _ = list(r['trained_models'].keys())[0]
-#         d[(sample, filtering_key)] = r['trained_models'][_]['variants'].to_list()
-# 
-# 
-# # Save
-# with open(os.path.join(path_results, 'variants.pickle'), 'wb') as f:
-#     pickle.dump(d, f)
-
-
-##
-
-
 # Read report
 df1 = pd.read_csv(os.path.join(path_results, 'GT_stringent_report_precision.csv'), index_col=0)
 df2 = pd.read_csv(os.path.join(path_results, 'report_precision.csv'), index_col=0)

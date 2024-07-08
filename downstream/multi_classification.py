@@ -23,19 +23,19 @@ from mito_utils.plotting_base import *
 
 
 # Set paths
-path_main = '/Users/IEO5505/Desktop/mito_bench'
-path_data = os.path.join(path_main, 'data')
-path_results = os.path.join(path_main, 'results/supervised_clones/distances')
-path_vars = os.path.join(path_main, 'results/var_selection')
-
-# Params
+# path_main = '/Users/IEO5505/Desktop/mito_bench'
 # sample = 'AML_clones'
 # filtering = 'enriched'
 # t = 0.05
 
-sample = sys.argv[1]
-filtering = sys.argv[2]
-t = float(sys.argv[3])
+path_main = sys.argv[1]
+sample = sys.argv[2]
+filtering = sys.argv[3]
+t = float(sys.argv[4])
+
+path_data = os.path.join(path_main, 'data')
+path_results = os.path.join(path_main, 'results/supervised_clones/distances')
+path_vars = os.path.join(path_main, 'results/var_selection')
 
 
 ##
@@ -49,11 +49,7 @@ def main():
     afm = read_one_sample(path_data, sample, with_GBC=True)
 
     # Filter AFM
-    if filtering in ['enriched', 'stringent']:
-        file = f'GT_{filtering}_'
-    else:
-        file = ''
-    with open(os.path.join(path_vars, f'{file}variants.pickle'), 'rb') as f:
+    with open(os.path.join(path_vars, 'variants.pickle'), 'rb') as f:
         VARIANTS = pickle.load(f)
 
     _, a = filter_cells_and_vars(
